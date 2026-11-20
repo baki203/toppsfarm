@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import logging
 import random
 import re
@@ -68,6 +69,10 @@ class Settings:
     captcha: dict = field(default_factory=dict)
     queue: dict = field(default_factory=dict)
     notify: dict = field(default_factory=dict)
+    mail: dict = field(default_factory=dict)
+    sms: dict = field(default_factory=dict)
+    geo: dict = field(default_factory=dict)
+    proxy: dict = field(default_factory=dict)
     state_db: str = "var/state.sqlite"
     log_dir: str = "var/logs"
 
@@ -75,8 +80,16 @@ class Settings:
     def load(cls) -> "Settings":
         p = ROOT / "config" / "settings.yaml"
         data = yaml.safe_load(p.read_text(encoding="utf-8")) if p.exists() else {}
+        data = dict(data or {})
+        j = ROOT / "settings.json"
+        if j.exists():
+            try:
+                data.update({k: v for k, v in json.loads(j.read_text(encoding="utf-8")).items()
+                             if k in cls.__dataclass_fields__})
+            except Exception:
+                pass
         s = cls()
-        for k, v in (data or {}).items():
+        for k, v in data.items():
             if hasattr(s, k):
                 setattr(s, k, v)
         return s
@@ -294,14 +307,27 @@ class ProxyPool:
             if p.exists():
                 items = _parse_proxy_lines(p.read_text(encoding="utf-8-sig"))
         self.items = items
+        self.dead: set[str] = set()  # fuer den Lauf gesperrte Proxys
+
+    def mark_dead(self, proxy: str):
+        if proxy:
+            self.dead.add(proxy)
 
     async def acquire(self, pinned: str | None = None) -> str | None:
         if pinned or not self.items:
             return pinned
         cd = await self.db.cooldowns()
         now = time.time()
-        alive = [p for p in self.items if cd.get(p, 0) <= now] or self.items
+        alive = [p for p in self.items
+                 if p not in self.dead and cd.get(p, 0) <= now]
+        alive = alive or [p for p in self.items if p not in self.dead] or self.items
         return random.choice(alive)
+
+    async def precheck(self, cfg: Settings, host: str) -> dict:
+        """Pruft jeden Proxy einmal gegen `host`. Tote Proxys werden fuer den
+        Lauf gesperrt und in var/proxystats.csv dokumentiert (Punkt 4)."""
+        from core.proxycheck import precheck_proxies
+        return await precheck_proxies(self, cfg, host)
 
 
 # --------------------------------------------------------------- state
@@ -1077,6 +1103,18 @@ class Monitor:
 
 
 # --------------------------------------------------------------- orchestrator
+async def geo_check(cfg: Settings, prof: Profile, proxy: str | None) -> tuple[bool, str]:
+    """A4: IP-Geo der Proxy-Ausgangs-IP mit dem Profil-Land vergleichen.
+    -> (ok, hinweis). Immer True, wenn geo nicht aktiviert oder kein Land."""
+    from core.geo import ip_geo, region_matches
+    if not cfg.geo.get("enabled", False):
+        return True, "geo aus"
+    geo = await ip_geo(proxy)
+    if not geo:
+        return (not cfg.geo.get("strict", True)), "geo unbestimmbar"
+    return region_matches(geo, prof.country)
+
+
 class Orchestrator:
     def __init__(self, cfg, state, pool, notifier, profiles, http_engine, browser_engine=None):
         self.cfg, self.state, self.pool = cfg, state, pool
@@ -1085,6 +1123,8 @@ class Orchestrator:
         self.sem = asyncio.Semaphore(cfg.concurrency_http)
         self.bsem = asyncio.Semaphore(cfg.concurrency_browser)
         self.rr, self.tasks = 0, []
+        from modules.quality import Quality
+        self.q = Quality(MODULE)
 
     async def pick(self):
         if not self.profiles:
@@ -1111,6 +1151,14 @@ class Orchestrator:
 
     async def _run(self, tid, task):
         prof = task["profile"]
+        self.q.increment("attempts")
+        # A4: Geo-Pruefung vor Taskstart
+        if self.cfg.geo.get("enabled", False):
+            ok, hinweis = await geo_check(self.cfg, prof, task.get("proxy"))
+            if not ok:
+                await self.state.set_task(tid, "fail", f"banned:geo ({hinweis})")
+                self.q.banned("geo")
+                return
         for attempt in range(self.cfg.max_retries):
             if task["mode"] == "browser" and self.browser:
                 async with self.bsem:
@@ -1119,6 +1167,7 @@ class Orchestrator:
                 async with self.sem:
                     res = await self.http.run(task, prof)
             if res["ok"]:
+                self.q.success()
                 await self.state.set_task(tid, "ok", res.get("note"), res.get("url"),
                                           res.get("order"))
                 if res.get("order"):
@@ -1128,6 +1177,7 @@ class Orchestrator:
                                           "Order": res.get("order") or "-",
                                           "URL": res.get("url") or "-"})
                 return
+            self.q.banned(res.get("note") or "")
             await self.state.set_task(tid, "retry" if attempt + 1 < self.cfg.max_retries
                                       else "fail", res.get("note"))
             if attempt + 1 < self.cfg.max_retries:
@@ -1140,6 +1190,7 @@ class Orchestrator:
         if self.tasks:
             await asyncio.gather(*self.tasks, return_exceptions=True)
             self.tasks.clear()
+        self.q.finish()
 
 
 # --------------------------------------------------------------- cli
@@ -1179,6 +1230,12 @@ async def cmd_selftest(cfg, state, pool, notifier):
 
 
 async def cmd_watch(cfg, state, pool, notifier, solver, mode, hosts):
+    if cfg.proxy.get("precheck", True) and pool.items:
+        target = hosts[0] if hosts else (cfg.hosts[0] if cfg.hosts else "")
+        if target:
+            r = await pool.precheck(cfg, target)
+            CONSOLE.print(f"[bold]Proxy-Vorpruefung[/]: {r['checked']} geprueft, "
+                          f"{r['alive']} ok, {r['dead']} tot -> var/proxystats.csv")
     http_engine = HttpCheckout(cfg, state, pool, solver, notifier)
     browser = None
     if mode == "browser":
@@ -1206,6 +1263,10 @@ async def cmd_watch(cfg, state, pool, notifier, solver, mode, hosts):
 
 
 async def cmd_drop(cfg, state, pool, notifier, solver, host, vid, tasks, qty, mode, card):
+    if cfg.proxy.get("precheck", True) and pool.items:
+        r = await pool.precheck(cfg, host)
+        CONSOLE.print(f"[bold]Proxy-Vorpruefung[/]: {r['checked']} geprueft, "
+                      f"{r['alive']} ok, {r['dead']} tot -> var/proxystats.csv")
     http_engine = HttpCheckout(cfg, state, pool, solver, notifier)
     browser = None
     if mode == "browser":

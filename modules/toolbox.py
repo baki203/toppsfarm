@@ -83,6 +83,20 @@ async def test_webhook(url: str) -> dict:
     return {"ok": True, "note": "gesendet"}
 
 
+async def precheck_proxies_cli(module: str, host: str):
+    """Punkt 4: Proxys gegen die Ziel-Domain vorpruefen -> var/proxystats.csv."""
+    from modules.shopify_core import ProxyPool, Settings, State, ENV
+    cfg = Settings.load()
+    state = State(str(cfg.path(cfg.state_db)))
+    pool = ProxyPool(state, module)
+    if not pool.items:
+        print(f"[toolbox] keine Proxies fuer Modul '{module}'.")
+        return
+    r = await pool.precheck(cfg, host)
+    print(f"[toolbox] Proxy-Vorpruefung {module}: {r['checked']} geprueft, "
+          f"{r['alive']} ok, {r['dead']} tot (gesperrt) -> var/proxystats.csv")
+
+
 class ToolboxModule:
     title = "Toolbox"
 
@@ -92,6 +106,7 @@ class ToolboxModule:
             print("   1  Proxy testen (Modulordner)")
             print("   2  Captcha-Balance")
             print("   3  Discord-Webhook testen")
+            print("   4  Proxy-Vorpruefung gegen Ziel-Domain")
             print("   0  Zurueck")
             try:
                 wahl = input(" Auswahl: ").strip()
@@ -121,6 +136,13 @@ class ToolboxModule:
                         print(asyncio.run(test_webhook(url)))
                     except KeyboardInterrupt:
                         print()
+            elif wahl == "4":
+                mod = input(" Modul [topps]: ").strip() or "topps"
+                host = input(" Ziel-Domain [de.topps.com]: ").strip() or "de.topps.com"
+                try:
+                    asyncio.run(precheck_proxies_cli(mod, host))
+                except KeyboardInterrupt:
+                    print()
 
 
 if __name__ == "__main__":

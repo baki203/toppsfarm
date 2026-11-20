@@ -97,6 +97,21 @@ Nach jedem Lauf (Monitor-Stopp, Checkout-Ende, Generator-Ende, Toolbox-Test) wir
 ### C11 Toolbox
 - Quality-Messpunkte fuer Proxy-Test (attempts je Proxy, banned:proxy bei Fehler),
   captcha_balance, test_webhook. Kein Konto-Kontext.
+- Punkt 4 "Proxy-Vorpruefung gegen Ziel-Domain": ruft ProxyPool.precheck -> core/proxycheck.py,
+  schreibt var/proxystats.csv, sperrt tote Proxys fuer den Lauf.
+
+## E. Umsetzung der vier neuen QUALITY-Luecken
+- A1 Catch-All-Mailbox: core/mailbox.py `create_inbox` mit provider "catchall" erzeugt
+  <12-random>@<domain>, `wait_for_link` nutzt IMAP (_imap_wait_for_link). Mail.tm bleibt Fallback.
+- A10 SMS-Provider-Abstraktion: core/sms.py (5sim/smspva/herosms), Keys aus config/keys.env
+  (SMS_*_KEY), Quality-Zaehler `sms:<name>`. In account_base nur auf Aufforderung
+  (Settings.sms.only_on_request=false + Seite in `sites`, default nike/amazon).
+- A4 IP-Geo-Vorpruefung: core/geo.py (ip-api.com), geo_check() in shopify_core/retail_core/
+  account_base -> banned:geo bei Land/Regions-Abweichung (nur wenn geo.enabled).
+- Punkt 4 Proxy-Vorpruefung: core/proxycheck.py prueft jeden Proxy einmal gegen die
+  Ziel-Domain (ok wenn 200<=status<500), sperrt Tote via ProxyPool.mark_dead,
+  schreibt var/proxystats.csv, Quality-Zaehler proxy:<modul>; aktiv in cmd_watch/cmd_drop
+  (Settings.proxy.precheck) und als Toolbox-Punkt 4.
 
 ## D. Skyridge-Massstab: wo wir ueberbieten
 - Skyridge/Pepper: Messung nur implizit (crashlog, "looping on login"). Wir: explizite Zaehler +

@@ -1,9 +1,18 @@
 # STAND
-Stand 2026-11-20, ARBEITSWEISE (8 Punkte). Deutsch. Je Punkt: Test + STAND.md + commit + push.
+Stand 2026-11-20, ARBEITSWEISE (8 Punkte) + 4 QUALITY-Luecken. Deutsch. Je Punkt: Test + STAND.md + commit + push.
 
 ## BLOCKER
 - Skyridge-GitBook auth-geschuetzt (SPA nur JS-Shell, Content-API 403, kein Wayback-Mirror). Erkenntnisse stattdessen aus lokaler settings.json + crashlog.log (PyInstaller-Tracebacks) + PepperScripts-Doku.
-- VENICE: keys.env ergaenzt (VENICE_API_KEY, VENICE_MODEL=xiaomi-mimo-v2-6-flash), keine Windows-Env geaendert. Auftrag "discord/auswerten.py" (Vorfilter/Stueckzahl/Kostenschaetzung/Teststueck) hier nicht vorhanden - stammt aus anderem Chat ohne uebernommenen Verlauf. BLOCKED: Kontext fehlt.
+- Auftrag "discord/auswerten.py" (Vorfilter/Stueckzahl/Kostenschaetzung/Teststueck) hier nicht vorhanden - stammt aus anderem Chat ohne uebernommenen Verlauf. BLOCKED: Kontext fehlt.
+
+## Stand Punkte
+9 QUALITY-LUECKEN (A1 Catch-All, A10 SMS, A4 Geo, Proxy-Vorpruefung): erledigt.
+   A1 core/mailbox.py provider catchall (<12-random>@domain) + _imap_wait_for_link. A10 core/sms.py
+   (5sim/smspva/herosms, keys SMS_*_KEY), account_base nutzt nur auf Aufforderung (only_on_request=false
+   + sites nike/amazon). A4 core/geo.py (ip-api) + geo_check in shopify_core/retail_core/account_base,
+   banned:geo. Proxy core/proxycheck.py (var/proxystats.csv, mark_dead) + cmd_watch/cmd_drop + Toolbox
+   Punkt 4. QUALITY.md Abschnitt E. Getestet: geo DE/FR/None, SMS ohne key sauber, proxy-precheck 2 tot,
+   Topps-Selftest 4/4 200. Committet 92e018f + folgend.
 
 ## Stand Punkte
 1 STRUKTUR: erledigt. accounts\ + proxies\ je Modul (topps, pokemoncenter, nike, amazon, riftbound, psn, mediamarkt, saturn, snkrs, smyths, shopify), je .gitkeep + README.txt (Format http://user:pass@host:port). Verifiziert.

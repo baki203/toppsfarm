@@ -99,6 +99,16 @@ class Quality:
         print(line)
         return line
 
+    def record(self, ok: bool, text: str = ""):
+        """Einzelaktion (z. B. Mailbox-/SMS-Versuch): zaehlt und persistiert
+        sofort. Fuer langlaufende Provider-Zaehler ohne Laufende-Ausgabe."""
+        self.increment("attempts")
+        if ok:
+            self.success()
+        else:
+            self.banned(text)
+        self.store()
+
     def cumulative(self) -> dict:
         with sqlite3.connect(self.db) as con:
             row = con.execute("SELECT SUM(attempts), SUM(success), SUM(banned), "

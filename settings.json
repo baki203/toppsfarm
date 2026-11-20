@@ -25,6 +25,32 @@
     "on_new": true,
     "on_ok": true
   },
+  "mail": {
+    "provider": "mailtm",
+    "catchall": {
+      "imap_host": "",
+      "imap_port": 993,
+      "user": "",
+      "password": "",
+      "domain": ""
+    }
+  },
+  "sms": {
+    "enabled": false,
+    "provider": "5sim",
+    "country": "RU",
+    "only_on_request": true,
+    "sites": ["nike", "amazon"],
+    "service": ""
+  },
+  "geo": {
+    "enabled": false,
+    "strict": true
+  },
+  "proxy": {
+    "precheck": true,
+    "check_timeout_s": 15
+  },
   "state_db": "var/state.sqlite",
   "log_dir": "var/logs"
 }

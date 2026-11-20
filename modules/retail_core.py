@@ -91,6 +91,14 @@ class RetailCheckout:
         await browser.start()
         res = {"ok": False, "note": "", "url": url, "order": None}
         self.q.increment("attempts")
+        # A4: Geo-Pruefung gegen ship_country, sofern aktiviert
+        if self.cfg.geo.get("enabled", False):
+            from modules.shopify_core import geo_check
+            ok, hinweis = await geo_check(self.cfg, self._geo_profile(), None)
+            if not ok:
+                res.update(note=f"banned:geo ({hinweis})")
+                self.q.banned("geo")
+                return res
         try:
             page = await browser.new_page()
             await page.goto(url, wait_until="domcontentloaded", timeout=45000)
@@ -116,6 +124,12 @@ class RetailCheckout:
         finally:
             self.q.finish()
             await browser.stop()
+
+    def _geo_profile(self):
+        """Profile-Ersatz fuer die Geo-Pruefung (nur Land relevant)."""
+        from modules.shopify_core import Profile
+        return Profile(id="retail", email="", first_name="", last_name="",
+                       address1="", zip="", city="", country=self.cfg.ship_country)
 
     async def _locate_checkout(self, page) -> str | None:
         """Unterklasse kann den Checkout-Link/selektor bestimmen. None = aktuelle Seite."""
