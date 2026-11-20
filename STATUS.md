@@ -205,3 +205,26 @@ ohne Query /products.json | 403 | http=3 | text/html; charset=UTF-8 | 5683 B | t
 mit Query /products.json?limit=250 | 403 | http=3 | text/html; charset=UTF-8 | 5683 B | title=Attention Required! | Cloudflare
 ```
 Ergebnis: kein Unterschied, beide 403.
+
+### Matrix 5 - Sitemap und /products/<handle>.js
+```
+/ (Startseite) | 200 | http=3 | text/html; charset=utf-8 | 1154468 B | title=Topps Deutschland Official | Sammelkarten, exklusi
+/robots.txt | 200 | http=3 | text/plain | 173 B | body=User-Agent: * Allow: / Disallow: /*?* Di
+/sitemap.xml | 200 | http=3 | application/xml | 61392 B | body=<?xml version="1.0" encoding="UTF-8"?> <
+/sitemap_products_1.xml | 404 | http=3 | text/html; charset=utf-8 | 237562 B | body=<!DOCTYPE html><html lang="de"><head><me
+/products/sitemap.xml | 200 | application/xml | 24446 B | <?xml version="1.0" encoding="UTF-8"?><sitemapindex xmlns="h
+/products/sitemap/0.xml | 200 | application/xml | 36622 B | <?xml version="1.0" encoding="UTF-8"?> <urlset xmlns="http://www.sitem
+/products/sitemap/324.xml | 200 | application/xml | 2989 B | <?xml version="1.0" encoding="UTF-8"?> <urlset xmlns="http://www.sitem
+/products/<handle>.js | 200 | text/html; charset=utf-8 | 238782 B | (HTML-Seite, kein JSON)
+/products/<handle>.json | 200 | text/html; charset=utf-8 | 240595 B | (HTML-Seite, kein JSON)
+/products/<handle> | 200 | text/html; charset=utf-8 | 507212 B | Produktseite, Variant-IDs im HTML
+shop-de.topps.com/products/<handle>.js | 404 | application/json; charset=utf-8 | 0 B
+topps-deu.myshopify.com/products/<handle>.js | 404 | application/json; charset=utf-8 | 0 B
+```
+(`<handle>` = erster Eintrag aus `/products/sitemap/0.xml`.)
+
+Befund - eigentliche Ursache des 403:
+- de.topps.com ist kein klassisches Shopify-Theme mehr, sondern ein Next.js-Frontend auf Vercel (`x-powered-by: Next.js`, `x-vercel-id`) mit Shopify nur noch als Backend (`storeDomain: topps-deu.myshopify.com`, Checkout-Domain `shop-de.topps.com`).
+- Die Shopify-Theme-Endpunkte gibt es dort nicht mehr: `/products.json` wird von Cloudflare pauschal mit 403 geblockt (unabhaengig von Headern, Fingerprint, HTTP-Version, Query), `/sitemap_products_1.xml` ist 404, `/products/<handle>.js` liefert die HTML-Produktseite statt JSON.
+- Die Produkt-Sitemap liegt laut robots.txt unter `/products/sitemap.xml` (Index mit 325 Teil-Sitemaps `/products/sitemap/0.xml` .. `324.xml`, ca. 194 Handles je Datei, neueste Produkte am Ende der letzten Datei).
+- Variant-IDs stehen im HTML der Produktseite (`gid://shopify/ProductVariant/<id>` inkl. `availableForSale` und Preis).
