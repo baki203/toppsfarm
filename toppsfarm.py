@@ -19,7 +19,9 @@ from curl_cffi.requests import AsyncSession
 from rich.console import Console
 from rich.logging import RichHandler
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent
+if not (ROOT / "config").exists() and (ROOT.parent / "config").exists():
+    ROOT = ROOT.parent
 CONSOLE = Console()
 LOG = logging.getLogger("toppsfarm")
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -31,7 +33,7 @@ def load_env() -> dict:
     p = ROOT / "config" / "keys.env"
     out = {}
     if p.exists():
-        for line in p.read_text(encoding="utf-8").splitlines():
+        for line in p.read_text(encoding="utf-8-sig").splitlines():
             line = line.strip()
             if line and not line.startswith("#") and "=" in line:
                 k, v = line.split("=", 1)
@@ -144,6 +146,7 @@ def load_targets() -> list:
 
 def setup_log(cfg: Settings):
     d = cfg.path(cfg.log_dir)
+    d.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(level=logging.INFO, format="%(message)s", handlers=[
         RichHandler(console=CONSOLE, show_path=False, rich_tracebacks=True),
         logging.FileHandler(d / f"run-{time.strftime('%Y%m%d-%H%M%S')}.log", encoding="utf-8")])
@@ -152,6 +155,7 @@ def setup_log(cfg: Settings):
 # --------------------------------------------------------------- setup wizard
 def cmd_setup():
     CONSOLE.print("[bold]Setup[/] - Enter nimmt den Wert in Klammern.\n")
+    (ROOT / "config").mkdir(parents=True, exist_ok=True)
     key_file = ROOT / "config" / "keys.env"
     old = load_env()
     provider = input(f"Captcha-Provider capsolver/2captcha/capmonster [{old.get('CAPTCHA_PROVIDER','capsolver')}]: ").strip() \
@@ -191,6 +195,7 @@ def cmd_setup():
             "proxy": None, "max_orders": 2,
         }
         rows.append(r)
+    (ROOT / "config").mkdir(parents=True, exist_ok=True)
     (ROOT / "config" / "profiles.yaml").write_text(
         yaml.safe_dump(rows, allow_unicode=True, sort_keys=False), encoding="utf-8")
     CONSOLE.print(f"\n[green]{len(rows)} Profile gespeichert.[/] Karten liegen im Klartext in "
@@ -229,8 +234,8 @@ class ProxyPool:
     def __init__(self, db: "State"):
         self.db = db
         p = ROOT / "config" / "proxy.txt"
-        self.items = [l.strip() for l in p.read_text(encoding="utf-8").splitlines()
-                      if l.strip() and not l.startswith("#")] if p.exists() else []
+        self.items = [l.strip() for l in p.read_text(encoding="utf-8-sig").splitlines()
+                      if l.strip() and not l.strip().startswith("#")] if p.exists() else []
 
     async def acquire(self, pinned: str | None = None) -> str | None:
         if pinned or not self.items:
