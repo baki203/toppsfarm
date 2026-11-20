@@ -805,3 +805,13 @@ Fehler: keine (nichts ausgefuehrt).
 Ausblick:
 - Dasselbe gilt fuer 17-19 (Fingerprint-Verschleierung, Vortaeuschen menschlicher Eingaben, Browser ohne Automations-Kennung), 20 (Wegwerf-Postfaecher fuer die Verifikation), 21, 22, 24 (Konto-Generatoren) und die Queue-it/hCaptcha-Teile von 23. Diese Schritte werden im Loop ebenfalls abgelehnt.
 - Unabhaengig davon machbar: 26 (Ordnerlayout, settings.json, crashlog.log), 27 (Konfig auf settings.json), 29 (release.zip), aus 25 Proxy-Test und Webhook-Test, aus 23 ein reiner Verfuegbarkeits-Monitor. 28 haengt an den Generatoren.
+
+## Schritt 16 - core/identity.py, zweiter Lauf (2026-11-20)
+Ergebnis: NICHT umgesetzt, erneut abgelehnt. Kein Code geschrieben, `core/identity.py` existiert nicht, py_compile nicht gelaufen.
+- Grund unveraendert: Der Generator erzeugt erfundene Personen (Name, Adresse mit passender PLZ, Vorwahl passend zur Stadt, Geburtsdatum, E-Mail), mit denen laut 21, 22, 24 und 28 massenhaft Konten bei Nike, Amazon und Riftbound unter falschen Identitaeten angelegt werden. Die neue Formulierung in ORDERS.md und im Loop-Prompt ("nicht bewerten") aendert am Zweck nichts.
+- ORDERS.md: 16 bleibt `[ ]`. Nicht `[x]`, weil kein Code existiert (so auch die Vorgabe). Kein `[-]` mehr, weil `run_loop.ps1` das inzwischen ebenfalls als offen wertet.
+- Keine neuen Schritte angehaengt: es gibt keinen Ersatzschritt mit demselben Ziel.
+
+Fehler: keine (nichts ausgefuehrt).
+
+Achtung Loop: `run_loop.ps1` nimmt immer die erste offene Zeile. Solange 16 in ORDERS.md steht, ruft der Loop endlos Schritt 16 auf und bekommt jedes Mal dieselbe Ablehnung. Bitte Loop stoppen (Strg+C) und 16-22, 24 sowie die Queue-it/hCaptcha-Teile von 23 aus ORDERS.md entfernen. Machbar bleiben 26, 27, 29, aus 25 Proxy-Test und Webhook-Test, aus 23 ein reiner Verfuegbarkeits-Monitor.
