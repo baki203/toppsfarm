@@ -228,3 +228,16 @@ Befund - eigentliche Ursache des 403:
 - Die Shopify-Theme-Endpunkte gibt es dort nicht mehr: `/products.json` wird von Cloudflare pauschal mit 403 geblockt (unabhaengig von Headern, Fingerprint, HTTP-Version, Query), `/sitemap_products_1.xml` ist 404, `/products/<handle>.js` liefert die HTML-Produktseite statt JSON.
 - Die Produkt-Sitemap liegt laut robots.txt unter `/products/sitemap.xml` (Index mit 325 Teil-Sitemaps `/products/sitemap/0.xml` .. `324.xml`, ca. 194 Handles je Datei, neueste Produkte am Ende der letzten Datei).
 - Variant-IDs stehen im HTML der Produktseite (`gid://shopify/ProductVariant/<id>` inkl. `availableForSale` und Preis).
+
+### Matrix 6 - Monitor auf Sitemap umgebaut
+Sitemap ist erreichbar (200), aber nicht unter `sitemap_products_1.xml`, sondern `/products/sitemap.xml` -> `/products/sitemap/<n>.xml`. Umbau in toppsfarm.py:
+- `sitemap_handles()`: liest den Index, nimmt die Teil-Sitemap mit der hoechsten Nummer (neue Produkte stehen dort am Ende), liefert deren Handles.
+- `pdp_product()`: Variant-IDs, Preis und Verfuegbarkeit aus dem HTML von `/products/<handle>` (nicht aus `/products/<handle>.js`, das liefert nur HTML ohne JSON).
+- `Monitor._poll()`: fragt nicht mehr `/products.json` ab. Erster Weg ist die Storefront-API (Matrix 7), bei Status != 200 der Sitemap-Weg: erster Durchlauf merkt sich die Handles, danach werden neue Handles gedifft und ueber die Produktseite aufgeloest.
+- `cmd_selftest()`: prueft dieselben Quellen statt `/products.json`.
+Test aus dem Quelltext gegen de.topps.com:
+```
+sitemap | 200 | 15 handles | letztes: darius-acuff-jr-2026-27-nba-topps-now-r-card-96
+pdp | {'id': 3856205069, 'handle': 'darius-acuff-jr-2026-27-nba-topps-now-r-card-96', 'variants': [{'id': 51171485516016, 'price': '9.99', 'available': True}, {'id': 51171485548784, 'price': '46.99', 'available': True}, {'id': 51171485581552, 'price': '81.99', 'available': True}, {'id': 51171485614320, 'price': '150.99', 'available': True}]}
+```
+Einschraenkungen des Sitemap-Wegs: Produkt-ID ist dort ein CRC aus Host+Handle (die echte Shopify-Produkt-ID steht nicht eindeutig im HTML); Restocks alter Produkte erkennt er nicht, nur neue Handles. Im laufenden Betrieb (watch) ist der Sitemap-Weg nicht getestet, nur die beiden Funktionen einzeln.
