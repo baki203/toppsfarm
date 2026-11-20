@@ -3,15 +3,19 @@
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 
 from utilities.logger.CrashLogger import CrashLogger
+from utilities.root import APP_ROOT, ensure_runtime, ensure_settings
 
 SLOTS = 14
 
-CRASHLOG = Path(__file__).resolve().parent / "crashlog.log"
+# Laufzeit-Ordner relativ zur EXE (frozen) bzw. Programmwurzel sicherstellen.
+CRASHLOG = ensure_runtime()
 
 CrashLogger(CRASHLOG).install()
+
+# settings.json fehlt -> aus settings.example.json erzeugen (Hinweis, kein Abbruch).
+ensure_settings()
 
 
 def _auto_update() -> None:

@@ -11,7 +11,7 @@ from utilities.identity import IdentityGenerator
 from utilities.mailbox import create_inbox, wait_for_link
 from utilities.quality import Quality
 
-ROOT = Path(__file__).resolve().parent.parent
+from utilities.root import APP_ROOT as ROOT
 
 
 def _load_settings():

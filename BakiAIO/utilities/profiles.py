@@ -1,15 +1,12 @@
 ﻿"""Profil-Generator: erzeugt N Profile aus IdentityGenerator fuer accounts/<mod>/profiles.yaml."""
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 import yaml
 
 from utilities.identity import IdentityGenerator
-
-ROOT = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) \
-    else Path(__file__).resolve().parent.parent
+from utilities.root import ROOT
 
 
 def generate_profiles(count: int, seed: int | None = None,

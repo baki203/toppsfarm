@@ -8,7 +8,7 @@ import sqlite3
 import time
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+from utilities.root import APP_ROOT as ROOT
 
 BANNER_MUSTER = (
     ("cloudflare", "cf-please-wait"),

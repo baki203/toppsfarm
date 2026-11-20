@@ -7,6 +7,8 @@ from dataclasses import asdict, dataclass
 from datetime import date
 from pathlib import Path
 
+from utilities.root import APP_ROOT
+
 DATA = Path(__file__).resolve().parent.parent / "data"
 
 UMLAUT = str.maketrans({"ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss",
@@ -26,6 +28,15 @@ def _pool(name: str) -> list[str]:
     if not items:
         raise IdentityError(f"Datendatei leer: {p}")
     return items
+
+
+def _user_names(name: str) -> list[str]:
+    """Vorrangige Namensquelle aus APP_ROOT (FirstNames.txt / LastNames.txt).
+    Leer/mit fehlend oder leer -> leere Liste, damit der gebuendelte Pool greift."""
+    p = APP_ROOT / name
+    if not p.exists():
+        return []
+    return [ln.strip() for ln in p.read_text(encoding="utf-8").splitlines() if ln.strip()]
 
 
 @dataclass
@@ -68,8 +79,8 @@ class IdentityGenerator:
     def __init__(self, mail_domain: str = "mail.tm", seed: int | None = None):
         self.rng = random.Random(seed)
         self.mail_domain = mail_domain
-        self._first = _pool("de_firstnames.txt")
-        self._last = _pool("de_lastnames.txt")
+        self._first = _user_names("FirstNames.txt") or _pool("de_firstnames.txt")
+        self._last = _user_names("LastNames.txt") or _pool("de_lastnames.txt")
         self._streets = _pool("de_streets.txt")
         self._places = self._load_places()
 

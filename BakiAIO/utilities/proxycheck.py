@@ -11,7 +11,7 @@ from pathlib import Path
 from utilities.proxy import is_proxy_auth_error
 from utilities.quality import Quality
 
-ROOT = Path(__file__).resolve().parent.parent
+from utilities.root import APP_ROOT as ROOT
 STATS_FILE = ROOT / "var" / "proxystats.csv"
 
 DEFAULT_HOSTS = ["amazon.de", "nike.com", "pokemoncenter.com",

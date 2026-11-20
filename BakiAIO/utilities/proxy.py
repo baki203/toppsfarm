@@ -18,10 +18,7 @@ import re
 import sys
 from pathlib import Path
 
-ROOT = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) \
-    else Path(__file__).resolve().parent.parent
-while not (ROOT / "config").exists() and ROOT.parent != ROOT:
-    ROOT = ROOT.parent
+from utilities.root import ROOT
 SHARED_FILE = ROOT / "proxies" / "proxies.txt"
 
 PROXY_AUTH_MUSTER = (

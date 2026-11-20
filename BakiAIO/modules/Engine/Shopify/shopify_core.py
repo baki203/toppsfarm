@@ -27,13 +27,7 @@ from modules.base import BaseModule
 
 from utilities.proxy import parse_proxy_lines  # noqa: E402
 
-ROOT = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent.parent
-while not (ROOT / "config").exists() and ROOT.parent != ROOT:
-    ROOT = ROOT.parent
-# Programm-Wurzel (BakiAIO\ = 4 Ebenen ueber shopify_core.py). Dort liegt
-# settings.json im Skyridge-Layout, waehrend ROOT (Repo-Root) die Daten haelt.
-APP_ROOT = (Path(sys.executable).resolve().parent if getattr(sys, "frozen", False)
-            else Path(__file__).resolve().parents[3])
+from utilities.root import ROOT, APP_ROOT
 CONSOLE = Console()
 LOG = logging.getLogger("toppsfarm")
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "

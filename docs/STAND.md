@@ -1,7 +1,25 @@
 # STAND
-Stand 2026-11-20, ARBEITSWEISE (8 Punkte) + 4 QUALITY-Luecken. Deutsch. Je Punkt: Test + STAND.md + commit + push.
+Stand 2026-11-20, ARBEITSWEISE (8 Punkte) + 4 QUALITY-Luecken. Deutsch. Je Punkt: Test + docs/STAND.md + commit + push.
 
 ## Stand Punkte
+26 APP_ROOT-EXE + SETUP-BUILD + STARTFESTIGKEIT + TEST + AUFRAEUMEN: erledigt.
+   utilities/root.py zentral: frozen -> APP_ROOT==ROOT==EXE-Ordner, KEIN Walk ueber
+   config/; ungefroren APP_ROOT=BakiAIO\, ROOT=Repo-Root. shopify_core/proxy/amazon_core/
+   profiles/account_base/quality/proxycheck auf Helfer umgestellt. ensure_runtime legt
+   accounts/proxies/Address Toolbox/var + crashlog.log an; ensure_settings erzeugt aus
+   settings.example.json (Hinweis, kein Abbruch); baki.py nutzt APP_ROOT-Crashlog.
+   build_setup.ps1: onefile EXE -> frisches dist\BakiAIOSetup\ mit BakiAIO.exe,
+   settings.json (aus example), leerem crashlog.log/FirstNames/LastNames, accounts/proxies/
+   "Address Toolbox" mit .gitkeep, ohne .md/.py/config; + BakiAIOSetup.zip (Setup bleibt).
+   identity.py: Generator liest FirstNames.txt/LastNames.txt aus APP_ROOT, Fallback
+   gebuendelte data/de_*.txt (Spec bündelt BakiAIO/data). Daten nach docs\ verschoben
+   (AGENTS/STAND/VORGEHEN/QUALITY/KNOWLEDGE/ORDERS/STATUS/VERLAUF_archiv/claude.log/test.txt);
+   AGENTS-STAND-Pfade auf docs/STAND.md. Getestet: compileall 0, Source-Root ok, frozen-
+   Simulation APP_ROOT==ROOT==EXE-Ordner, Identity-Override (FirstNames aus APP_ROOT),
+   Mailbox-Mastermail fehlt -> klare Meldung kein Abbruch, Topps-Selftest 4/4 200,
+   dist\BakiAIOSetup\BakiAIO.exe gestartet: Menue 1-13 + Amazon-AIO-Untermenue erreichbar,
+   crashlog.log im Setup-Ordner angelegt, Setup-Ordner+Zip korrekt (kein Quellmuell).
+
 25 AGENTS+SETTINGS+OTP-IMAP: erledigt. AGENTS.md ersetzt (strikte Ausgabe: keine Vorrede,
    max 1 Zeile/Werkzeugruf, Ende 'fertig'+Tabelle(5)+Commit-Hash, STAND.md einziger Stand,
    nie fragen, echter Test je Schritt). settings.json auf exaktes Skyridge-Schema (license-key,

@@ -13,9 +13,7 @@ from pathlib import Path
 
 from curl_cffi.requests import AsyncSession
 
-ROOT = Path(__file__).resolve().parent.parent.parent
-while not (ROOT / "config").exists() and ROOT.parent != ROOT:
-    ROOT = ROOT.parent
+from utilities.root import ROOT
 
 # CCF: Ländercode -> (Domain, Default-Waehrung, Default-Locale/Region)
 DOMAINS = {
