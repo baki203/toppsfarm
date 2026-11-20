@@ -732,6 +732,12 @@ class HttpCheckout:
                              json={"id": task["variant"], "quantity": task.get("qty", 1)},
                              headers=headers(self.cfg, host, True))
             if r.status_code != 200:
+                # Next.js-Frontend ohne klassischen cart/add.js (z. B. de.topps.com):
+                # Checkout-Link direkt ueber die Storefront-cartCreate-API.
+                link = await self._storefront_cart_link(s, host, task)
+                if link:
+                    res.update(ok=True, url=link, note="storefront checkout-link")
+                    return res
                 res["note"] = f"cart {r.status_code}"
                 return res
             r = await s.get(f"https://{host}/checkout", headers=headers(self.cfg, host))
@@ -779,6 +785,37 @@ class HttpCheckout:
             return res
         finally:
             await s.close()
+
+    async def _storefront_cart_link(self, s, host, task) -> str | None:
+        """Checkout-Link ueber die Storefront-cartCreate-API fuer Next.js-Shops,
+        die kein /cart/add.js anbieten. -> checkoutUrl oder None."""
+        try:
+            sf = await storefront_cfg(s, self.cfg, host)
+            if not sf:
+                return None
+            dom, tok = sf
+            vid = task["variant"]
+            q = ("mutation cartCreate($input:CartInput!){cartCreate(input:$input){"
+                 "cart{id checkoutUrl} userErrors{field message}}}")
+            r = await s.post(f"https://{dom}/api/{SF_VERSION}/graphql.json",
+                             json={"query": q, "variables": {
+                                 "input": {"lines": [
+                                     {"merchandiseId": f"gid://shopify/ProductVariant/{vid}",
+                                      "quantity": int(task.get("qty", 1))}]}}},
+                             headers={**base_headers(self.cfg, True),
+                                      "content-type": "application/json",
+                                      "x-shopify-storefront-access-token": tok})
+            if r.status_code != 200:
+                return None
+            cart = (r.json().get("data") or {}).get("cartCreate") or {}
+            if cart.get("userErrors"):
+                LOG.debug("cartCreate errs: %s", cart["userErrors"])
+                return None
+            url = (cart.get("cart") or {}).get("checkoutUrl")
+            return url or None
+        except Exception as exc:
+            LOG.debug("storefront cart link: %s", exc)
+            return None
 
     async def _wait_queue(self, s, host) -> str:
         end = time.monotonic() + float(self.cfg.queue.get("max_wait_s", 1800))
