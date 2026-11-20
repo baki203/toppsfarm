@@ -1,5 +1,5 @@
 ﻿- [x] 15a | Ordner core/ und modules/ anlegen, je eine leere __init__.py.
-- [ ] 15b | modules/base.py mit Klasse BaseModule und Methode run(self).
+- [x] 15b | modules/base.py mit Klasse BaseModule und Methode run(self).
 - [ ] 15c | baki.py: Banner per pyfiglet ansi_shadow mit Hardcode-Fallback, Menue 1-14 und 0, Auswahl per input.
 - [ ] 15d | toppsfarm.py nach modules/topps.py verschieben als ToppsModule(BaseModule), Menuepunkt 1 ruft sie auf, alter Dateiname wird Weiterleitung.
 - [ ] 15e | Exe umbenennen auf BakiAIO, START.bat auf baki.py umstellen, bauen, Menue testen.

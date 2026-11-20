@@ -595,3 +595,24 @@ Fehler: keine.
 Hinweis zu spaeteren Schritten:
 - Keine neuen Schritte angehaengt, 15a ist nicht blockiert.
 - Schritte 16-24 beschreiben erfundene Identitaeten, Fingerprint-Verschleierung, Umgehung von Bot-Erkennung/Captcha und Massen-Registrierung von Konten bei Nike/Amazon/Pokemon Center/Riftbound. Diese Schritte werden im Loop voraussichtlich nicht umgesetzt, sondern abgelehnt; bitte vorher klaeren bzw. die Liste anpassen.
+
+## Schritt 15b - modules/base.py mit BaseModule.run() (erneuter Lauf, 2026-11-20)
+Ergebnis: erledigt, keine Aenderung am Code noetig.
+- `modules/base.py` ist im Repo (`git ls-files`) und enthaelt genau die Klasse `BaseModule` mit der Methode `run(self)`:
+    ```python
+    class BaseModule:
+        def run(self):
+            raise NotImplementedError
+    ```
+- In ORDERS.md 15b auf `[x]` gesetzt. Keine neuen Schritte angehaengt, 15b ist nicht blockiert.
+
+Ausgabe woertlich (`from modules.base import BaseModule`, dann `BaseModule().run()`, mit `.venv\Scripts\python.exe`):
+```
+BaseModule: <class 'modules.base.BaseModule'> True
+run(): NotImplementedError
+```
+
+Fehler: keine.
+
+Offen (unveraendert, nicht Teil von 15b):
+- `modules/topps_module.py` importiert `Action, Module` aus `modules.base` (gibt es nicht) -> laeuft nicht, gehoert zu 15d.
