@@ -255,3 +255,27 @@ storefront p1 | 200 | 250 produkte | cursor True | 1.8s
 storefront p2 | 200 | 250
 ```
 Ergebnis: 200 mit Produkten, Variant-IDs, Preis und `availableForSale`. Das ist jetzt die Hauptquelle des Monitors (2 Seiten a 250, neueste zuerst).
+
+### Schritt 4 - Endergebnis nach Umbau
+Exe neu gebaut (gleicher PyInstaller-Befehl wie Schritt 3, Exit-Code 0, kein Traceback, `Build complete!`; `dist\toppsfarm.exe` 60291382 Bytes, 20.11.2026 03:01:39).
+`.\dist\toppsfarm.exe selftest` (Exit-Code 0), Host-Zeilen woertlich:
+```
+OK  de.topps.com (200) storefront products-JSON
+--- shop-de.topps.com (404)
+OK  es.topps.com (200) storefront products-JSON
+OK  fr.topps.com (200) storefront products-JSON
+OK  it.topps.com (200) storefront products-JSON
+--- nl.topps.com (DNSError)
+--- at.topps.com (DNSError)
+--- be.topps.com (DNSError)
+--- pl.topps.com (DNSError)
+--- shop-uk.topps.com (404)
+```
+Ergebnis: de.topps.com liefert 200 mit Produkt-JSON - aber ueber die Storefront-API, NICHT ueber `/products.json`. `/products.json` selbst bleibt in jeder getesteten Variante 403 (Matrix 1-4) und wird nicht mehr benutzt. Schritt 4 deshalb in ORDERS.md auf [x].
+
+Fehler / offen:
+- `--- shop-de.topps.com (404)` und `--- shop-uk.topps.com (404)`: das sind reine Checkout-Domains ohne Startseite/Sitemap (vorher 403 auf /products.json). Als Monitor-Hosts ungeeignet.
+- `--- nl/at/be/pl.topps.com (DNSError)`: Hostnamen loesen nicht auf.
+- Keine Profilzeilen, weil `config\profiles.yaml` nicht existiert.
+- `warm()` und `HttpCheckout` rufen weiterhin `/products.json?limit=1`, `/cart/add.js` und `/checkout` auf dem Frontend-Host auf. Nicht angefasst (gehoert zu Schritt 5), wird dort auf de.topps.com voraussichtlich nicht funktionieren, weil das Frontend kein Shopify-Theme ist. Schritt 5 nennt ausserdem `/products.json?limit=20` als Quelle der Variant-ID - die gibt es nicht mehr, Variant-IDs kommen jetzt aus der Storefront-API.
+- Die Startseite bindet `consumer.fanfare.io` ein (Warteraum-/Drop-Dienst). Nicht untersucht.
