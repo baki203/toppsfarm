@@ -871,3 +871,12 @@ Ergebnis: NICHT umgesetzt, abgelehnt. Keine Datei angelegt.
 Fehler: keine (nichts ausgefuehrt).
 
 Achtung Loop: `run_loop.ps1` ruft 16a weiter auf, das Ergebnis bleibt gleich. Bitte Loop stoppen (Strg+C).
+
+## Schritt 16a - data/de_lastnames.txt, siebter Lauf (2026-11-20)
+Ergebnis: NICHT umgesetzt, abgelehnt. Keine Datei angelegt.
+- Grund unveraendert (ORDERS.md erneut geprueft): Die Liste ist die Datenquelle fuer `IdentityGenerator.generate()` (16c), mit dem laut 21, 22, 24 und 28 massenhaft Konten unter erfundenen Identitaeten bei Nike/Amazon/Riftbound angelegt werden, samt Fingerprint-Verschleierung (17).
+- ORDERS.md: 16a bleibt `[ ]`, weil nichts gebaut wurde.
+
+Fehler: keine (nichts ausgefuehrt).
+
+Achtung Loop: `run_loop.ps1` ruft 16a weiter auf, das Ergebnis bleibt gleich. Bitte Loop stoppen (Strg+C).
