@@ -113,6 +113,18 @@ class RetailCheckout:
                     return res
                 await asyncio.sleep(float(self.cfg.queue.get("poll_s", 1.2)))
                 await page.reload(wait_until="domcontentloaded", timeout=20000)
+            # F: Consent-Wall automatisch wegklicken (falls vorhanden)
+            await self._dismiss_consent(page)
+            # JSON-LD-Preis/Lager separat auswerten
+            try:
+                ld = await self._jsonld(page)
+                if ld:
+                    res["price"] = ld.get("offers", {}).get("price") if isinstance(
+                        ld.get("offers"), dict) else None
+                    res["stock"] = ld.get("offers", {}).get("availability") if isinstance(
+                        ld.get("offers"), dict) else None
+            except Exception:
+                pass
             # Warenkorb oeffnen bzw. den Checkout ansteuern (Selektor je Shop)
             target = await self._locate_checkout(page)
             if target:
@@ -134,6 +146,72 @@ class RetailCheckout:
         from modules.Engine.Shopify.shopify_core import Profile
         return Profile(id="retail", email="", first_name="", last_name="",
                        address1="", zip="", city="", country=self.cfg.ship_country)
+
+    async def _dismiss_consent(self, page):
+        """F: Cookie-Banner/Consent-Wall automatisch schliessen. Klickt den
+        ersten passenden Ablehnen/Zustimmen/Schliessen-Knopf, sonst sPACE."""
+        import json as _json
+        # typische deutsche Consent-Banner-Muster
+        for sel in ('button:has-text("Alle ablehnen")', 'button:has-text("Nur essenzielle")',
+                    'button:has-text("Ablehnen")', 'button:has-text("Zustimmen")',
+                    'button:has-text("Akzeptieren")', 'button:has-text("Accept all")',
+                    'button:has-text("Accept")', 'button[aria-label*="consent" i]',
+                    'button[aria-label*="cookie" i]', '#onetrust-reject-all-handler',
+                    '#onetrust-accept-btn-handler', '.cookie-banner button',
+                    '.consent button', '[class*="consent"] button',
+                    '[class*="cookie"] button', '.cm-btn',
+                    'button:has-text("Schliessen")', '.close', '[aria-label*="Schliessen" i]'):
+            try:
+                loc = page.locator(sel).first
+                if await loc.count():
+                    await loc.click(timeout=3000)
+                    await page.wait_for_timeout(800)
+                    # Banner weg?
+                    try:
+                        body = await page.content()
+                        if ("consent" in body.lower() or "cookie" in body.lower()):
+                            await page.keyboard.press("Escape")
+                        return
+                    except Exception:
+                        return
+            except Exception:
+                continue
+        try:
+            await page.keyboard.press("Escape")
+        except Exception:
+            pass
+
+    async def _jsonld(self, page) -> dict:
+        """F: JSON-LD aus der Produktseite lesen -> {name, offers:{price, availability}}."""
+        import json as _json
+        try:
+            content = await page.content()
+        except Exception:
+            return {}
+        import re
+        best = {}
+        for m in re.finditer(r'<script type="application/ld\+json"[^>]*>(.*?)</script>',
+                             content, re.S):
+            try:
+                d = _json.loads(m.group(1))
+            except Exception:
+                continue
+            if not isinstance(d, dict):
+                continue
+            g = d.get("@graph") or []
+            for node in ([d] + (g if isinstance(g, list) else [])):
+                if not isinstance(node, dict):
+                    continue
+                if node.get("@type") in ("Product", "ProductOffer", "Offer"):
+                    off = node.get("offers") or node
+                    price = off.get("price") or node.get("price")
+                    av = off.get("availability") or node.get("availability")
+                    best = {"name": node.get("name", ""),
+                            "offers": {"price": price, "availability": av}}
+                    break
+            if best:
+                break
+        return best
 
     async def _locate_checkout(self, page) -> str | None:
         """Unterklasse kann den Checkout-Link/selektor bestimmen. None = aktuelle Seite."""

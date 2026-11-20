@@ -459,18 +459,25 @@ def cf_cookies() -> dict | None:
     return _CF_CACHE
 
 
-async def cf_refresh(host: str, headless: bool = False) -> dict:
+async def cf_refresh(host: str, headless: bool = False, proxy: str | None = None) -> dict:
     """Oeffnet den Browser (einmalig, nicht headless damit Cloudflare den
     Turnstile loslaesst), wartet auf cf_clearance, speichert die Cookies fuer
-    curl_cffi und liefert sie zurueck. -> {name: wert} oder {}."""
+    curl_cffi und liefert sie zurueck. -> {name: wert} oder {}.
+    `proxy`: WICHTIG - cf_clearance ist IP-gebunden. Damit die Cookies zu den
+    curl_cffi-Requests (gleicher Proxy-IP) passen, muss der Browser DURCH
+    denselben Proxy laufen. Ohne proxy werden die Cookies nutzlos (403)."""
     from playwright.async_api import async_playwright
+    from utilities.proxy import proxy_playwright
     dir = (ROOT / "var" / "browser-cf").resolve()
     pw = await async_playwright().start()
-    ctx = await pw.chromium.launch_persistent_context(
-        str(dir), headless=headless, user_agent=UA, locale="de-DE",
-        viewport={"width": 1366, "height": 768},
-        args=["--disable-blink-features=AutomationControlled", "--no-sandbox",
-              "--disable-gpu", "--disable-dev-shm-usage"])
+    lp = dict(headless=headless, user_agent=UA, locale="de-DE",
+              viewport={"width": 1366, "height": 768},
+              args=["--disable-blink-features=AutomationControlled", "--no-sandbox",
+                    "--disable-gpu", "--disable-dev-shm-usage"])
+    px = proxy_playwright(proxy)
+    if px:
+        lp["proxy"] = px
+    ctx = await pw.chromium.launch_persistent_context(str(dir), **lp)
     page = ctx.pages[0] if ctx.pages else await ctx.new_page()
     await page.add_init_script(
         "Object.defineProperty(navigator,'webdriver',{get:()=>undefined});"
