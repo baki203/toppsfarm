@@ -150,6 +150,14 @@ Stand 2026-11-20, ARBEITSWEISE (8 Punkte) + 4 QUALITY-Luecken. Deutsch. Je Punkt
    laedt. release.zip neu gebaut (61.7 MB, 1 Entry BakiAIO.exe, gitignored). Topps-Selftest
    aus Quelle 4/4 200. Git-Tag fuer Release angelegt.
 
+## Stand Punkte
+21 PROXY-FORMAT: erledigt. utilities/proxy.py normalize_proxy: bevorzugtes Eingabeformat
+   IP:PORT:USERNAME:PASSWORD (regex statt split, damit Passwoerter mit Doppelpunkt sicher
+   verarbeitet werden; letzter Doppelpunkt trennt das Passwort). Auch akzeptiert:
+   http://user:pass@host:port, user:pass@host:port, host:port. Verifiziert: 1000 Zeilen
+   proxies/proxies.txt alle parse ok. Docs aktualisiert: proxies/README.txt + alle
+   proxies/<modul>/README.txt + BakiAIO/README.md dokumentieren IP:PORT:USERNAME:PASSWORD.
+
 ## WEITER
 Offen: echter PSN-Anmeldetest braucht echte Credentials; Amazon ACO/Reset/Farmer/Invites
 brauchen echte eingeloggte Browser-Session (Session Manager); de.topps products.json und

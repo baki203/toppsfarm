@@ -42,7 +42,10 @@ Die Module liegen unter `modules/`:
 - `baki.py` verdrahtet die 14 Menueplaetze; Importe passieren erst bei Auswahl.
 
 Je Modul gibt es eigene Unterordner `accounts\<modul>\` (Profile) und `proxies\<modul>\`
-(Proxy-Listen, Zeilenformat `http://user:pass@host:port`).
+(Proxy-Listen). Proxy-Zeilenformat: immer `IP:PORT:USERNAME:PASSWORD` (eine Zeile je
+Proxy, z. B. `1.2.3.4:8080:user:pass`). `http://user:pass@host:port`, `user:pass@host:port`
+und `host:port` werden ebenfalls akzeptiert und automatisch normalisiert (siehe
+`utilities/proxy.py`).
 
 ## Topps EU (Platz 1)
 

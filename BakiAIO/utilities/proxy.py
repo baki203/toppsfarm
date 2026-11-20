@@ -70,6 +70,8 @@ def proxy_source() -> str:
 
 def normalize_proxy(line: str) -> str | None:
     """Normalisiert ein Proxy-Format in http://user:pass@host:port.
+    Bevorzugtes Eingabeformat: IP:PORT:USERNAME:PASSWORD (oder host:port:user:pass).
+    Auch erlaubt: http://user:pass@host:port, user:pass@host:port, host:port.
     Liefert None fuer Leerzeilen/Kommentare/ungueltige Zeilen."""
     line = (line or "").strip()
     if not line or line.startswith("#"):
@@ -78,12 +80,16 @@ def normalize_proxy(line: str) -> str | None:
         return line
     if "@" in line:  # user:pass@host:port
         return "http://" + line
-    parts = line.split(":")
-    if len(parts) == 4:  # host:port:user:pass
-        host, port, user, pw = parts
+    # IP:PORT:USERNAME:PASSWORD - regex statt split, damit Passwoerter
+    # mit Doppelpunkt funktionieren (nur der letzte Teil ist das Passwort).
+    m = re.match(r"^([^:]+):(\d+):([^:]+):(.+)$", line)
+    if m:
+        host, port, user, pw = m.group(1), m.group(2), m.group(3), m.group(4)
         return f"http://{user}:{pw}@{host}:{port}"
-    if len(parts) == 2:  # host:port (ohne Auth)
-        return f"http://{parts[0]}:{parts[1]}"
+    # host:port (ohne Auth)
+    m = re.match(r"^([^:]+):(\d+)$", line)
+    if m:
+        return f"http://{m.group(1)}:{m.group(2)}"
     return None
 
 
