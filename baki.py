@@ -3,8 +3,25 @@
 from __future__ import annotations
 
 import sys
+import traceback
+from pathlib import Path
 
 SLOTS = 14
+
+CRASHLOG = Path(__file__).resolve().parent / "crashlog.log"
+
+
+def _excepthook(typ, val, tb):
+    try:
+        with CRASHLOG.open("a", encoding="utf-8") as f:
+            f.write("\n--- " + __import__("time").strftime("%Y-%m-%d %H:%M:%S") + " ---\n")
+            traceback.print_exception(typ, val, tb, file=f)
+    except Exception:
+        pass
+    traceback.print_exception(typ, val, tb)
+
+
+sys.excepthook = _excepthook
 
 
 def _topps():

@@ -1,0 +1,7 @@
+
+--- 2026-11-20 18:20:00 ---
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    import baki; raise RuntimeError('test crash 2')
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: test crash 2

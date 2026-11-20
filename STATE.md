@@ -7,10 +7,11 @@ Stand: 2026-11-20, Aufgaben 1-7 aus AGENTS.md.
 - 2: Cloudflare-403 geloest. `cf_refresh()` oeffnet Browser, speichert cf_clearance+__cf_bm nach var/cf_cookies.json; `session()` reicht sie an curl_cffi weiter. Test: Homepage 200 (vorher 403), Storefront-API liefert Produkte. products.json bleibt serverseitig gesperrt (BLOCKER).
 - 3: cart-Flow ok. de.topps.com ohne /cart/add.js (Next.js); neu `HttpCheckout._storefront_cart_link` (Storefront-cartCreate) -> echter checkoutUrl. Drop-Test 1 Task (Cameron Boozer, variant 51178597613808): Task 'ok' mit checkout-link. Orchestrator sendet URL als CHECKOUT-Nachricht an Discord.
 - 4: baki.py Menue hat 14 Plaetze, Module 1-6 verdrahtet (Topps/Nike/Amazon/Riftbound/Pokemon/Toolbox), 7-14 Platzhalter ("-" + "noch nicht belegt"). Alle 6 Fabriken importieren, run() vorhanden. Menue startet (Banner ok).
+- 5: settings.json mit Defaults liegt vor (gultiges JSON, 17 Keys, spiegelt settings.yaml). Neu in baki.py: sys.excepthook schreibt Traceback nach crashlog.log. Test: Crash im baki-Kontext schreibt Datei.
 
 ## Offen
-- 5: settings.json Defaults + crashlog.log Traceback-Handler.
 - 6: release.zip bauen.
+- 7: README auf Baki AIO umschreiben.
 - 6: release.zip bauen.
 - 7: README auf Baki AIO umschreiben.
 
@@ -19,4 +20,4 @@ Stand: 2026-11-20, Aufgaben 1-7 aus AGENTS.md.
 - Discord-Link erst wenn DISCORD_WEBHOOK in config/keys.env gesetzt (fehlt, .gitignored).
 
 ## Naechster Schritt
-- 5: settings.json Defaults + crashlog.log Traceback-Handler.
+- 6: release.zip bauen.
