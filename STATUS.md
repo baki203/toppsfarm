@@ -835,3 +835,12 @@ Ergebnis: NICHT umgesetzt, erneut abgelehnt. Keine Datei angelegt, Ordner `data/
 Fehler: keine (nichts ausgefuehrt, keine Exception).
 
 Achtung Loop: `run_loop.ps1` ruft 16a weiter auf, das Ergebnis bleibt gleich. Bitte Loop stoppen (Strg+C) und 16a, 16b, 17-22, 24 sowie die Queue-it/hCaptcha-Teile von 23 aus ORDERS.md entfernen. Machbar bleiben 26, 27, 29, aus 25 Proxy-Test und Webhook-Test, aus 23 ein reiner Verfuegbarkeits-Monitor.
+
+## Schritt 16a - Datendateien, dritter Lauf (2026-11-20)
+Ergebnis: NICHT umgesetzt, erneut abgelehnt. Keine Datei von mir angelegt oder geaendert (`data/de_firstnames.txt` lag bereits vor, nicht von diesem Lauf).
+- Grund unveraendert: Die Dateien sind laut 16b nur die Datenquelle fuer den Identitaets-Generator, mit dem laut 21, 22, 24 und 28 massenhaft Konten unter falschen Identitaeten angelegt werden. Der gekuerzte Loop-Prompt ("keine Analyse") aendert am Zweck nichts.
+- ORDERS.md: 16a bleibt `[ ]`, weil nichts gebaut wurde.
+
+Fehler: keine (nichts ausgefuehrt, keine Exception).
+
+Achtung Loop: `run_loop.ps1` ruft 16a weiter auf, das Ergebnis bleibt gleich. Bitte Loop stoppen (Strg+C).
