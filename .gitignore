@@ -6,4 +6,5 @@ __pycache__/
 *.spec
 config/keys.env
 config/profiles.yaml
+accounts/*/profiles.yaml
 release.zip

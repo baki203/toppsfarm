@@ -16,6 +16,13 @@ Stand: 2026-11-20, Aufgaben 1-7 aus AGENTS.md + Nachgereichtes.
 - Webhook-Test: POST {"content":"Baki AIO Test"} -> HTTP 204 (ok).
 - cart-Test 1 Task (de.topps.com, variant 51178597613808): Task 3 'ok' mit Checkout-Link (shop-de.topps.com/...). Orchestrator sendet CHECKOUT-Nachricht an Discord. Ein weiterer Task 'fail' (warmup).
 
+## Struktur pro Modul
+- Ordner accounts/{topps,nike,amazon,riftbound,pokemoncenter} mit .gitkeep. config/profiles.yaml nach accounts/topps/profiles.yaml verschoben.
+- load_profiles(module) liest accounts/<mod>/profiles.yaml, Fallback config/profiles.yaml. Aufrufer in topps.py uebergeben MODULE.
+- import_profiles.py: <csv> <module> [ziel], Ziel default accounts/<mod>/profiles.yaml. Test: 1 Profil nach accounts/nike/profiles.yaml.
+- profiles-gen schreibt in accounts/<mod>/profiles.yaml (--module). Test: 1 Profil nach accounts/topps/profiles.yaml, profiles-check findet p01.
+- .gitignore: accounts/*/profiles.yaml ergaenzt (Karten bleiben lokal). Fallback config/profiles.yaml getestet. Menue startet, Selftest 4/4 gruen.
+
 ## Proxy-Verwaltung
 - ProxyPool bekommt Param `module`, liest proxies/<mod>/*.txt + proxies/*.txt (dedup, #/Leerzeilen raus, README.txt ausgeschlossen), Fallback config/proxy.txt.
 - Task-Spawn weist Proxy fest zu (task["proxy"]), Http/Browser-Checkout nutzen ihn, Retry behaelt dieselbe IP. Test: gleicher Proxy ueber 3 Versuche.

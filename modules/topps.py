@@ -149,8 +149,13 @@ def _row_to_profile(row: dict) -> Profile:
     return Profile(**keep)
 
 
-def load_profiles() -> list:
-    p = ROOT / "config" / "profiles.yaml"
+MODULE = "topps"
+
+
+def load_profiles(module: str = MODULE) -> list:
+    p = ROOT / "accounts" / module / "profiles.yaml"
+    if not p.exists():
+        p = ROOT / "config" / "profiles.yaml"  # Fallback
     if not p.exists():
         return []
     return [_row_to_profile(row)
@@ -214,10 +219,11 @@ def cmd_setup():
         }
         rows.append(r)
     (ROOT / "config").mkdir(parents=True, exist_ok=True)
-    (ROOT / "config" / "profiles.yaml").write_text(
+    (ROOT / "accounts" / MODULE).mkdir(parents=True, exist_ok=True)
+    (ROOT / "accounts" / MODULE / "profiles.yaml").write_text(
         yaml.safe_dump(rows, allow_unicode=True, sort_keys=False), encoding="utf-8")
     CONSOLE.print(f"\n[green]{len(rows)} Profile gespeichert.[/] Karten liegen im Klartext in "
-                  f"config\\profiles.yaml.\n")
+                  f"accounts\\{MODULE}\\profiles.yaml.\n")
 
 
 # --------------------------------------------------------------- notify
@@ -1135,7 +1141,7 @@ class Orchestrator:
 
 # --------------------------------------------------------------- cli
 async def cmd_selftest(cfg, state, pool, notifier):
-    for p in load_profiles():
+    for p in load_profiles(MODULE):
         iss = p.issues()
         CONSOLE.print(f"[{'green' if not iss else 'red'}]{p.id}: "
                       f"{'ok' if not iss else ','.join(iss)}[/]")
@@ -1175,7 +1181,7 @@ async def cmd_watch(cfg, state, pool, notifier, solver, mode, hosts):
     if mode == "browser":
         browser = BrowserCheckout(cfg, pool, solver, notifier)
         await browser.start()
-    orch = Orchestrator(cfg, state, pool, notifier, load_profiles(), http_engine, browser)
+    orch = Orchestrator(cfg, state, pool, notifier, load_profiles(MODULE), http_engine, browser)
     targets = load_targets()
 
     async def on_new(host, product, variant):
@@ -1202,7 +1208,7 @@ async def cmd_drop(cfg, state, pool, notifier, solver, host, vid, tasks, qty, mo
     if mode == "browser":
         browser = BrowserCheckout(cfg, pool, solver, notifier)
         await browser.start()
-    orch = Orchestrator(cfg, state, pool, notifier, load_profiles(), http_engine, browser)
+    orch = Orchestrator(cfg, state, pool, notifier, load_profiles(MODULE), http_engine, browser)
     await orch.spawn(host, vid, qty, mode, tasks, card)
     await orch.drain()
     if browser:
@@ -1219,6 +1225,7 @@ def main(argv=None):
     g = sub.add_parser("profiles-gen")
     g.add_argument("--count", type=int, default=1)
     g.add_argument("--seed", type=int, default=None)
+    g.add_argument("--module", default=MODULE)
     g.add_argument("--out", default=None)
     w = sub.add_parser("watch")
     w.add_argument("--mode", default="cart", choices=["cart", "browser"])
@@ -1252,7 +1259,7 @@ def main(argv=None):
     solver = Solver(cfg)
 
     if a.cmd == "profiles-check":
-        for p in load_profiles():
+        for p in load_profiles(MODULE):
             iss = p.issues()
             CONSOLE.print(f"{p.id}: {'ok' if not iss else ','.join(iss)}")
     elif a.cmd == "stats":
@@ -1260,7 +1267,7 @@ def main(argv=None):
     elif a.cmd == "profiles-gen":
         from core.profiles import generate_profiles, write_profiles
         rows = generate_profiles(max(1, a.count), a.seed)
-        dest = write_profiles(rows, Path(a.out) if a.out else None)
+        dest = write_profiles(rows, a.module, Path(a.out) if a.out else None)
         CONSOLE.print(f"[green]{len(rows)} Profile nach {dest}[/]")
     elif a.cmd == "cf-refresh":
         host = cfg.hosts[0] if cfg.hosts else "de.topps.com"

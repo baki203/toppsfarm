@@ -1,4 +1,4 @@
-"""Profil-Generator: erzeugt N Profile aus IdentityGenerator fuer config/profiles.yaml."""
+"""Profil-Generator: erzeugt N Profile aus IdentityGenerator fuer accounts/<mod>/profiles.yaml."""
 from __future__ import annotations
 
 import sys
@@ -34,9 +34,11 @@ def generate_profiles(count: int, seed: int | None = None,
     return out
 
 
-def write_profiles(rows: list[dict], path: Path | None = None) -> Path:
-    """Schreibt Profile nach config/profiles.yaml (oder in eine temp. Datei)."""
-    p = path or (ROOT / "config" / "profiles.yaml")
+def write_profiles(rows: list[dict], module: str = "topps",
+                   path: Path | None = None) -> Path:
+    """Schreibt Profile nach accounts/<module>/profiles.yaml (oder in eine
+    uebergebene Datei, z. B. fuer Tests)."""
+    p = path or (ROOT / "accounts" / module / "profiles.yaml")
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(yaml.safe_dump(rows, allow_unicode=True, sort_keys=False),
                  encoding="utf-8")
@@ -48,10 +50,11 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser(prog="profiles-gen")
     ap.add_argument("--count", type=int, default=1)
     ap.add_argument("--seed", type=int, default=None)
+    ap.add_argument("--module", default="topps")
     ap.add_argument("--out", default=None, help="Zieldatei (nur fuer Tests)")
     a = ap.parse_args()
     if a.count < 1:
         raise SystemExit("--count muss >= 1 sein")
     rows = generate_profiles(a.count, a.seed)
-    dest = write_profiles(rows, Path(a.out) if a.out else None)
+    dest = write_profiles(rows, a.module, Path(a.out) if a.out else None)
     print(f"{len(rows)} Profile nach {dest}")

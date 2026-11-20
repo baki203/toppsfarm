@@ -92,14 +92,16 @@ def write_profiles(rows: list[dict], path: Path) -> None:
 
 
 def main(argv) -> int:
-    if len(argv) < 1:
+    if len(argv) < 2:
         print(__doc__)
+        print("Aufruf: python tools/import_profiles.py <csv> <module> [ziel]")
         return 1
     src = Path(argv[0])
     if not src.exists():
         print(f"Datei nicht gefunden: {src}")
         return 1
-    dest = Path(argv[1]) if len(argv) > 1 else ROOT / "config" / "profiles.yaml"
+    module = argv[1]
+    dest = Path(argv[2]) if len(argv) > 2 else ROOT / "accounts" / module / "profiles.yaml"
     rows = read_profiles(src)
     write_profiles(rows, dest)
     print(f"{len(rows)} Profile importiert nach {dest}")
