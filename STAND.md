@@ -68,6 +68,16 @@ Stand 2026-11-20, ARBEITSWEISE (8 Punkte) + 4 QUALITY-Luecken. Deutsch. Je Punkt
    cartCreate -> https://shop-de.topps.com/cart/c/...), cmd_drop 1 Task -> 1 ok/0 gesperrt (dry).
    config/profiles.yaml Testprofil angelegt. Committet.
 
+## Stand Punkte
+14 PSN-LOGIN+QUEUE: erledigt (Implementierung). QueueCheckoutModule: PSNCheckout.login(email,
+   password, proxy) mit persistentem Browser-Context (var/browser-psn), Sony-Login (ca.account
+   .sony.com/ssocookie), auto re-login (Session-Erkennung ueber /login in URL), Speicherung der
+   Cookie-Session. PlayStatinModule.run: Menu-Punkt 3 Login. accounts/psn/profiles.yaml (gitignored,
+   1 Konto/Proxy, Geo DE). Queue-it-Checkout via geerbte RetailCheckout.run (dry_run Stopp vor Zahlung).
+   Getestet: compileall sauber, Import ok, Login-Dryrun navigiert zur Sony-Login-Seite, erkennt
+   Login-Formular korrekt, note 'login moeglicherweise fehlgeschlagen' (Test-Credentials). BLOCKER:
+   echter Anmeldetest nur mit echten PSN-Credentials moeglich (liegen nicht vor).
+
 ## WEITER
 Naechste Phase laut VORGEHEN.txt: B Amazon-Generator (non-PVA, mehrere Catch-All-Domains,
-ADDRESS-Modus in 2. Session, Selftest). Plus: 14 PSN-Login+Queue, 15 release.zip + EXE-Auto-Update.
+ADDRESS-Modus in 2. Session, Selftest). Plus: 15 release.zip + EXE-Auto-Update.
