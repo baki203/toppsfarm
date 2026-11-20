@@ -11,6 +11,8 @@ import sqlite3
 import subprocess
 import sys
 import time
+import zlib
+from urllib.parse import unquote
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -382,6 +384,114 @@ async def warm(s: AsyncSession, cfg: Settings, host: str) -> bool:
         return False
 
 
+# --------------------------------------------------------------- katalog
+# de.topps.com & Co. sind Next.js-Frontends mit Shopify-Backend: /products.json
+# ist dort per Cloudflare gesperrt (403). Produktdaten kommen stattdessen aus der
+# Storefront-API (Token steht oeffentlich im HTML der Startseite), ersatzweise
+# aus der Produkt-Sitemap (/products/sitemap.xml) plus Produktseite.
+SF_VERSION = "2024-10"
+SF_QUERY = ("query($n:Int!,$c:String){products(first:$n,after:$c,sortKey:CREATED_AT,reverse:true)"
+            "{pageInfo{hasNextPage endCursor} edges{node{id handle title "
+            "variants(first:20){edges{node{id availableForSale price{amount}}}}}}}}")
+_SF: dict = {}        # host -> (storeDomain, storefrontAccessToken)
+_SM_SEEN: dict = {}   # host -> bekannte Handles der letzten Teil-Sitemap
+
+
+def base_headers(cfg: Settings, json_mode: bool = False) -> dict:
+    return {"accept": "application/json" if json_mode else
+                      "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "accept-language": f"{cfg.locale},{cfg.locale.split('-')[0]};q=0.9,en;q=0.8"}
+
+
+def _gid(g: str) -> int:
+    return int(str(g).rsplit("/", 1)[-1])
+
+
+async def storefront_cfg(s: AsyncSession, cfg: Settings, host: str):
+    if host in _SF:
+        return _SF[host]
+    r = await s.get(f"https://{host}/", headers=base_headers(cfg))
+    if r.status_code != 200:
+        return None
+    t = r.text.replace('\\"', '"')
+    d = re.search(r'"storeDomain":"([a-z0-9-]+\.myshopify\.com)"', t)
+    k = re.search(r'"storefrontAccessToken":"([0-9a-f]{32})"', t)
+    if not (d and k):
+        return None
+    _SF[host] = (d.group(1), k.group(1))
+    return _SF[host]
+
+
+async def storefront_products(s: AsyncSession, cfg: Settings, host: str,
+                              first: int = 250, cursor: str | None = None):
+    """-> (status, products im products.json-Format, naechster Cursor). status 0 = kein Token."""
+    sf = await storefront_cfg(s, cfg, host)
+    if not sf:
+        return 0, [], None
+    dom, tok = sf
+    r = await s.post(f"https://{dom}/api/{SF_VERSION}/graphql.json",
+                     json={"query": SF_QUERY, "variables": {"n": first, "c": cursor}},
+                     headers={**base_headers(cfg, True), "content-type": "application/json",
+                              "x-shopify-storefront-access-token": tok})
+    if r.status_code != 200:
+        if r.status_code in (401, 403):
+            _SF.pop(host, None)
+        return r.status_code, [], None
+    data = (r.json().get("data") or {}).get("products")
+    if data is None:
+        return 200, [], None
+    items = []
+    for e in data.get("edges", []):
+        n = e["node"]
+        items.append({
+            "id": _gid(n["id"]), "handle": n.get("handle", ""), "title": n.get("title", ""),
+            "variants": [{"id": _gid(v["node"]["id"]),
+                          "price": (v["node"].get("price") or {}).get("amount", 0),
+                          "available": bool(v["node"].get("availableForSale"))}
+                         for v in n.get("variants", {}).get("edges", [])]})
+    pi = data.get("pageInfo") or {}
+    return 200, items, (pi.get("endCursor") if pi.get("hasNextPage") else None)
+
+
+async def sitemap_handles(s: AsyncSession, cfg: Settings, host: str):
+    """-> (status, Handles der letzten Teil-Sitemap; neue Produkte stehen dort am Ende)."""
+    r = await s.get(f"https://{host}/products/sitemap.xml", headers=base_headers(cfg))
+    if r.status_code != 200:
+        return r.status_code, []
+    subs = re.findall(r"<loc>([^<]+/products/sitemap/(\d+)\.xml)</loc>", r.text)
+    if not subs:
+        return 200, []
+    last = max(subs, key=lambda x: int(x[1]))[0]
+    r = await s.get(last, headers=base_headers(cfg))
+    if r.status_code != 200:
+        return r.status_code, []
+    return 200, re.findall(r"<loc>https?://[^<]+/products/([^<?/]+)</loc>", r.text)
+
+
+async def pdp_product(s: AsyncSession, cfg: Settings, host: str, handle: str):
+    """Produkt + Variant-IDs aus dem HTML der Produktseite (products.json-Format) oder None."""
+    r = await s.get(f"https://{host}/products/{handle}", headers=base_headers(cfg))
+    if r.status_code != 200:
+        return None
+    t = r.text.replace('\\"', '"')
+    raw = unquote(handle)
+    i = t.find(f'"handle":"{raw}","variants":[')
+    if i < 0:
+        return None
+    blk = t[i:i + 40000]
+    end = blk.find('"aggregatedVariants"')
+    if end > 0:
+        blk = blk[:end]
+    vs = [{"id": int(m.group(2)), "price": m.group(1), "available": m.group(3) == "true"}
+          for m in re.finditer(r'"price":\{"amount":"([\d.]+)".*?"id":"gid://shopify/ProductVariant/'
+                               r'(\d+)".*?"availableForSale":(true|false)', blk, re.S)]
+    if not vs:
+        return None
+    m = re.search(r"<title>(.*?)</title>", t, re.S)
+    return {"id": zlib.crc32(f"{host}/{raw}".encode()), "handle": raw,
+            "title": m.group(1).strip() if m else raw, "variants": vs}
+
+
 # --------------------------------------------------------------- captcha
 class Solver:
     def __init__(self, cfg: Settings):
@@ -705,30 +815,48 @@ class Monitor:
         s = session(self.cfg, proxy)
         changed = False
         try:
-            for page in (1, 2):
-                r = await s.get(f"https://{host}/products.json?limit=250&page={page}",
-                                headers=headers(self.cfg, host, True))
-                if r.status_code != 200:
+            # 1. Storefront-API (zwei Seiten a 250, neueste zuerst)
+            status, cursor = 0, None
+            for _ in (1, 2):
+                status, items, cursor = await storefront_products(s, self.cfg, host, 250, cursor)
+                if status != 200 or not items:
                     break
-                items = r.json().get("products", [])
-                if not items:
+                changed |= await self._feed(host, items)
+                if not cursor:
                     break
-                for p in items:
-                    is_new = await self.state.see_product(
-                        p["id"], host, p.get("handle", ""), p.get("title", ""),
-                        float(p["variants"][0]["price"]) if p.get("variants") else 0)
-                    for v in p.get("variants", []):
-                        fresh = await self.state.see_variant(
-                            v["id"], p["id"], host, float(v.get("price", 0)),
-                            int(bool(v.get("available"))))
-                        if is_new or fresh:
-                            changed = True
-                            await self._alert(host, p, v)
-                            await self.on_new(host, p, v)
+            # 2. Ersatz: Produkt-Sitemap diffen, Variant-IDs von der Produktseite
+            if status != 200:
+                st, handles = await sitemap_handles(s, self.cfg, host)
+                if st == 200 and handles:
+                    seen = _SM_SEEN.get(host)
+                    if seen is None:
+                        _SM_SEEN[host] = set(handles)
+                    else:
+                        for h in [h for h in handles if h not in seen]:
+                            p = await pdp_product(s, self.cfg, host, h)
+                            if p:
+                                seen.add(h)
+                                changed |= await self._feed(host, [p])
         except Exception as exc:
             LOG.debug("%s: %s", host, exc)
         finally:
             await s.close()
+        return changed
+
+    async def _feed(self, host, items) -> bool:
+        changed = False
+        for p in items:
+            is_new = await self.state.see_product(
+                p["id"], host, p.get("handle", ""), p.get("title", ""),
+                float(p["variants"][0]["price"]) if p.get("variants") else 0)
+            for v in p.get("variants", []):
+                fresh = await self.state.see_variant(
+                    v["id"], p["id"], host, float(v.get("price", 0)),
+                    int(bool(v.get("available"))))
+                if is_new or fresh:
+                    changed = True
+                    await self._alert(host, p, v)
+                    await self.on_new(host, p, v)
         return changed
 
     async def _alert(self, host, p, v):
@@ -814,11 +942,18 @@ async def cmd_selftest(cfg, state, pool, notifier):
     for host in cfg.hosts:
         s = session(cfg, await pool.acquire())
         try:
-            r = await s.get(f"https://{host}/products.json?limit=1",
-                            headers=headers(cfg, host, True))
-            ok = r.status_code == 200 and "products" in r.text
+            # Storefront-API zuerst, sonst Produkt-Sitemap; /products.json ist gesperrt
+            status, items, _ = await storefront_products(s, cfg, host, 1)
+            src = "storefront products-JSON"
+            ok = status == 200 and bool(items)
+            if not ok:
+                st, handles = await sitemap_handles(s, cfg, host)
+                if st == 200 and handles:
+                    status, src, ok = st, f"sitemap, {len(handles)} handles", True
+                elif not status:
+                    status = st
             CONSOLE.print(f"[{'green' if ok else 'red'}]{'OK ' if ok else '---'} {host} "
-                          f"({r.status_code})[/]")
+                          f"({status}){' ' + src if ok else ''}[/]")
         except Exception as exc:
             CONSOLE.print(f"[red]--- {host} ({type(exc).__name__})[/]")
         finally:
