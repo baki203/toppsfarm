@@ -9,7 +9,6 @@ if not defined BAKI if exist "%~dp0BakiAIO.exe" set BAKI="%~dp0BakiAIO.exe"
 if not defined BAKI echo Weder baki.py mit .venv noch BakiAIO.exe gefunden.
 if not defined BAKI pause
 if not defined BAKI exit /b 1
-if not exist "%~dp0config\profiles.yaml" %BAKI% topps setup
-if not exist "%~dp0config\profiles.yaml" pause
+if not exist "%~dp0config\profiles.yaml" echo Hinweis: config\profiles.yaml fehlt. Setup: Menue 1 (Topps EU), dann 7.
 %BAKI%
 exit /b %errorlevel%

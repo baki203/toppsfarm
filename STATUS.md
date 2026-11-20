@@ -725,3 +725,71 @@ Offen (15e):
 - `START.bat` ruft bei fehlender `config\profiles.yaml` weiter `%BAKI% topps setup` auf; `baki.py` nimmt keine Argumente an und zeigt dann nur das Menue. Setup ist jetzt ueber Menue 1 -> 7 oder `python toppsfarm.py setup` erreichbar.
 - `toppsfarm.spec` (unversioniert, per .gitignore) baut jetzt nur noch die Weiterleitung; massgeblich ist `BakiAIO.spec`.
 - Keine neuen Schritte angehaengt, 15d ist nicht blockiert. Der Hinweis zu den Schritten 16-24 (siehe erneuter Lauf 15a) gilt weiter.
+
+## Schritt 15e - Exe BakiAIO, START.bat auf baki.py, Build, Menuetest (2026-11-20)
+Ergebnis: erledigt.
+- Exe heisst `BakiAIO.exe`. Die alte `dist\toppsfarm.exe` (Stand 03:01, alter Monitor) und `toppsfarm.spec` (baute nur noch die Weiterleitung) sind geloescht; beides war unversioniert (.gitignore). Im dist-Ordner liegt nur noch `BakiAIO.exe`.
+- `START.bat`: startet `baki.py` ueber die .venv, sonst `dist\BakiAIO.exe`, sonst `BakiAIO.exe` neben der bat (war schon so). Entfernt: der Aufruf `%BAKI% topps setup` samt `pause` bei fehlender `config\profiles.yaml` (baki.py kennt keine Argumente). Stattdessen eine Hinweiszeile: `Hinweis: config\profiles.yaml fehlt. Setup: Menue 1 (Topps EU), dann 7.`
+- Build: `.\.venv\Scripts\pyinstaller.exe --noconfirm --clean BakiAIO.spec` (Spec = baki.py, onefile, collect_all curl_cffi/playwright/pyfiglet). Exit-Code 0, kein `Traceback`, keine ERROR-Zeile von PyInstaller. Ende der Ausgabe:
+```
+34218 INFO: Fixing EXE headers
+34586 INFO: Building EXE from EXE-00.toc completed successfully.
+34595 INFO: Build complete! The results are available in: C:\Users\sargo\Downloads\toppsfarm\dist
+```
+- `dist\BakiAIO.exe`, 60296751 Bytes, 20.11.2026 03:42:52. Enthaelt den Stand 15d (ToppsModule ueber Menuepunkt 1).
+- `py_compile baki.py toppsfarm.py modules\topps.py`: ohne Fehler.
+
+Menuetest der Exe: `cmd /c "dist\BakiAIO.exe < eingabe.txt"`, Eingabe `1`, `9`, `6`, `5`, `0`, `2`, `15`, `x`, `0`. Ausgabe woertlich, gekuerzt (wiederholte Banner/Menues und die Zeilen `2  -` bis `14  -` weggelassen):
+```
+
+ ____    _    _  _____      _    ___ ___
+| __ )  / \  | |/ /_ _|    / \  |_ _/ _ \
+|  _ \ / _ \ | ' / | |    / _ \  | | | | |
+| |_) / ___ \| . \ | |   / ___ \ | | |_| |
+|____/_/   \_\_|\_\___| /_/   \_\___\___/
+
+ ==================================================
+   1  Topps EU
+   ...
+   0  Ende
+ ==================================================
+ Auswahl:
+ --- Topps EU ---
+   1  Selftest
+   2  Watch - Cart-Links (wenig Daten)
+   3  Watch - mit Browser
+   4  Drop auf Variante
+   5  Profile pruefen
+   6  Statistik
+   7  Setup erneut ausfuehren
+   8  Browser-Engine installieren
+   0  Zurueck
+ Topps-Auswahl:  Ungueltige Auswahl.
+ Topps-Auswahl: {}
+ Topps-Auswahl:
+ Topps-Auswahl:
+ Auswahl:  2: noch nicht belegt.
+ Auswahl:  Ungueltige Auswahl.
+ Auswahl:  Ungueltige Auswahl.
+ Auswahl:
+exit=0
+```
+(`{}` = Statistik bei leerer State-DB; Profile pruefen ohne Ausgabe, weil `config\profiles.yaml` fehlt.)
+
+Test START.bat: `cmd /c ".\START.bat < eingabe.txt"`, Eingabe `1`, `0`, `0`: Hinweiszeile, ansi_shadow-Banner (ueber .venv + baki.py), Menue, Topps-Untermenue, zurueck, Ende, `exit=0`.
+
+Fehler:
+- Erster Testlauf der Exe per PowerShell-Pipe: die erste Eingabe `1` ergab ` Ungueltige Auswahl.`. Ursache: PowerShell setzt beim Pipen an ein natives Programm ein BOM vor die erste Zeile; Fehler des Tests, nicht des Programms. Wiederholt mit ASCII-Eingabedatei ueber cmd, Ausgabe oben.
+- Erster Aufruf `cmd /c "START.bat < ..."`, woertlich:
+  ```
+  Der Befehl "START.bat" ist entweder falsch geschrieben oder
+  konnte nicht gefunden werden.
+  ```
+  Mit `.\START.bat` laeuft es. Betrifft nur den Aufruf aus cmd ohne Pfad auf diesem Rechner, nicht den Doppelklick.
+- Sonst keine.
+
+Nicht getestet / offen:
+- Die Exe zeigt bei umgeleiteter Ausgabe den ASCII-Banner (Codierung cp1252). Ob im echten Konsolenfenster der pyfiglet-Banner (ansi_shadow) aus der Exe erscheint, ist nicht geprueft; ebenso START.bat per Doppelklick.
+- Selftest, Watch, Drop, Setup, Browser-Engine aus der Exe nicht ausgefuehrt (Netz-/Live-Zugriffe bzw. interaktiv).
+- `release.zip` ist unveraendert alt (enthaelt noch toppsfarm.exe); neu erst mit Schritt 29.
+- Keine neuen Schritte angehaengt, 15e ist nicht blockiert. Der Hinweis zu den Schritten 16-24 (siehe erneuter Lauf 15a) gilt weiter.

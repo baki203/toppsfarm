@@ -1,12 +1,13 @@
-# STATE (nach Schritt 15d, 2026-11-20)
+# STATE (nach Schritt 15e, 2026-11-20)
 Stand:
-- 15a-15d abgehakt. modules/topps.py enthaelt `ToppsModule(BaseModule)` mit Untermenue (run) und Befehlsaufruf (call); baki.py Menuepunkt 1 = Topps EU, 2-14 leer.
-- toppsfarm.py ist nur noch Weiterleitung (`python toppsfarm.py <befehl>` laeuft wie frueher). modules/topps_module.py geloescht.
-- Getestet per Pipe: Menue 1 -> Untermenue, Statistik, Profile pruefen, Weiterleitung. Exitcode 0, keine Fehler.
+- 15a-15e abgehakt. `dist\BakiAIO.exe` (60296751 Bytes, 03:42) neu gebaut aus `BakiAIO.spec`, enthaelt Menue + ToppsModule (Platz 1), 2-14 leer.
+- START.bat startet baki.py (.venv) bzw. BakiAIO.exe ohne Argumente; bei fehlender profiles.yaml nur noch Hinweiszeile.
+- Getestet per Eingabedatei: Exe und START.bat, Menue 1 -> Topps-Untermenue, Statistik, Profile pruefen, zurueck, Ende. Exitcode 0.
+- Alte dist\toppsfarm.exe und toppsfarm.spec geloescht (unversioniert).
 
 Offene Punkte:
-- Selftest/Watch/Drop/Setup ueber das Untermenue nicht getestet; nichts im echten Konsolenfenster geprueft.
-- START.bat ruft noch `baki.py topps setup` auf (baki.py kennt keine Argumente); dist\BakiAIO.exe hat den Stand 15d nicht (15e).
+- Nichts im echten Konsolenfenster geprueft (Banner ansi_shadow in der Exe, Doppelklick START.bat); Selftest/Watch/Drop/Setup aus der Exe nicht getestet.
+- release.zip ist alt (noch toppsfarm.exe), neu erst mit Schritt 29.
 - Schritte 16-24 (erfundene Identitaeten, Fingerprint-/Bot-Erkennungs-Umgehung, Massen-Account-Generatoren): siehe Hinweis in STATUS.md, vor dem Loop klaeren.
 
-Naechster Schritt: 15e - Exe als BakiAIO bauen, START.bat auf baki.py umstellen, Menue testen.
+Naechster Schritt: 16 - core/identity.py (siehe offener Punkt, wird voraussichtlich abgelehnt).
