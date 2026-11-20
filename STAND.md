@@ -29,8 +29,28 @@ Stand 2026-11-20, ARBEITSWEISE (8 Punkte) + 4 QUALITY-Luecken. Deutsch. Je Punkt
     Landing-Page loest exaktes Handle (Yaxel Lendeborg Card 95, Variante 51171485155568,
     9.99) + echter shop-de Checkout-Link, alle 6 Stufen einzeln belegt.
 
+25c TOPPS-DROP 4-PUNKTE-UPGRADE: erledigt. shopify_core.py: 1) Zielaufloesung --
+    --target <handle|variant> (Default, targets.yaml) ODER --resolve <landing-url>
+    Kaskade (cf_refresh ueber Task-Proxy -> HTML: /products/<handle>+eingebettete
+    handles+Collection-IDs -> Collection-storefront-Produkte -> suggest.json ->
+    sitemap -> slug-Kandidaten; erster Treffer -> exklusiv ID-Pfad). Kein Ziel =
+    Fehler, kein Blindlauf. 2) Speed-Pfad: 90 s vor --at cf+Session+cartCreate
+    (Cart-Link im Speicher), --at HH:MM|HH:MM:SS (monotone Uhr), Poll 1,0 s
+    availableForSale (ein Endpunkt, gleiche Session+Proxy), max_price aus Prewarm-
+    Cache, Adresse+Karte vorab. 3) Checkout+Webhook: run_prebuilt nutzt URL aus
+    Redirect (Shop-Domain), vollautomatisch (Queue->Form->Karte->pay). ERFOLG-Webhook
+    (Produkt/Preis/Order/Konto/Zeit) NUR bei Order-Beleg, sonst 'prepared';
+    Fehler-Webhook an _ERRORS (Ursache+Cart-Link). Quality-Zaehler
+    attempts/success/banned/retries+Sperrquote. Webhook-Setup wird geloggt.
+    4) Test: precheck aus drop entfernt (1000er-Vorpruefung war der Speed-Blocker,
+    bleibt in watch; acquire/mark_dead regeln Proxy-Gesundheit). Getestet:
+    compileall 0, Topps-Selftest 4/4 200, --target-Drydrop -> echter
+    shop-de.Checkout-Link, --resolve-Dryrun -> exaktes Handle+Variante+Preis,
+    --at-HH:MM:SS-Prewarm -> warte bis --at -> Checkout, Poll 1,0 s belegt.
+
 ## BLOCKER
 - Skyridge-GitBook auth-geschuetzt (SPA nur JS-Shell, Content-API 403, kein Wayback-Mirror). Erkenntnisse stattdessen aus lokaler settings.json + crashlog.log (PyInstaller-Tracebacks) + PepperScripts-Doku.
+- echter Live-Checkout (nicht dry) braucht echte Karte+Verfuegbarkeit+mglw. 3DS; de.topps hat keine oeffentlichen Collections (Kaskadenstufe leer, laeuft weiter).
 
 ## Stand Punkte
 9 QUALITY-LUECKEN (A1 Catch-All, A10 SMS, A4 Geo, Proxy-Vorpruefung): erledigt.

@@ -936,6 +936,62 @@ class HttpCheckout:
         finally:
             await s.close()
 
+    async def run_prebuilt(self, s, host, cart_url, prof: Profile,
+                           dry: bool = True, card: bool = False) -> dict:
+        """Vollautomatischer Checkout aus einem vorgebauten Cart-Link (Speed-Pfad).
+        Queue -> Formular aus Profil -> Karte -> Pay. Keine Bestaetigung, kein Klick.
+        Gleiche Session + gleicher Proxy wie Prewarm/Poll. -> dict mit order/url.
+        dry: stoppt vor der Zahlung und liefert den Checkout-Link."""
+        res = {"ok": False, "note": "", "url": cart_url, "order": None}
+        try:
+            r = await s.get(cart_url, headers=headers(self.cfg, host))
+            body = r.text
+            if queued(str(r.url), body):
+                body = await self._wait_queue(s, host)
+            url = str(r.url)
+            token = self._token(body, url)
+            if not token:
+                res["note"] = "kein checkout-token"
+                return res
+            csrf = self._csrf(body)
+            h = headers(self.cfg, host, True)
+            h.update({"content-type": "application/x-www-form-urlencoded",
+                      "x-csrf-token": csrf, "origin": f"https://{host}", "referer": url})
+            data = prof.form()
+            data.update({"_method": "patch", "authenticity_token": csrf})
+            r = await s.post(url, data=data, headers=h)
+            if r.status_code >= 400:
+                res["note"] = f"fill {r.status_code}"
+                return res
+            if "hcaptcha" in r.text.lower() or "recaptcha" in r.text.lower():
+                sk = self._sitekey(r.text)
+                if sk:
+                    tok = await self.solver.solve(sk[0], sk[1], url, None)
+                    if tok:
+                        d2 = prof.form()
+                        d2.update({"_method": "patch", "authenticity_token": csrf,
+                                   "checkout[hcaptcha_response]": tok})
+                        await s.post(url, data=d2, headers=h)
+            if dry:
+                res.update(ok=True, url=url, note="dry checkout-link")
+                return res
+            if not card:
+                res.update(ok=True, url=url, note="checkout vorbereitet")
+                return res
+            cf = prof.card_form()
+            cf.update({"_method": "patch", "authenticity_token": csrf,
+                       "checkout[payment_gateway]": "shopify"})
+            r2 = await s.post(url, data=cf, headers=h)
+            if any(x in r2.text for x in ("/thank_you", "/orders/")):
+                m = re.search(r"/orders/([A-Za-z0-9\-]+)", r2.text)
+                res.update(ok=True, order=m.group(1) if m else "?", url=url)
+                return res
+            res["note"] = "kein order-ref"
+            return res
+        except Exception as exc:
+            res["note"] = type(exc).__name__
+            return res
+
     async def _price_ok(self, s, host, task, maxp) -> bool:
         """Prueft den aktuellen Preis der Variante ueber /products.json
         bzw. die Storefront-API. True, wenn er unter maxp liegt."""
@@ -1242,7 +1298,8 @@ class Orchestrator:
                 return p
         return None
 
-    async def spawn(self, host, vid, qty, mode, count, card_http=False, max_price=0):
+    async def spawn(self, host, vid, qty, mode, count, card_http=False, max_price=0,
+                    title="", price=0.0):
         for _ in range(count):
             p = await self.pick()
             if not p:
@@ -1253,6 +1310,7 @@ class Orchestrator:
             self.tasks.append(asyncio.create_task(self._run(tid, {
                 "host": host, "variant": vid, "qty": qty, "mode": mode,
                 "card_http": card_http, "max_price": max_price,
+                "title": title, "price": price,
                 "profile": p, "proxy": proxy})))
             await asyncio.sleep(random.uniform(.03, .15))
 
@@ -1273,16 +1331,21 @@ class Orchestrator:
             else:
                 async with self.sem:
                     res = await self.http.run(task, prof)
-            if res["ok"]:
+            if res["ok"] and res.get("order"):
                 self.q.success()
                 await self.state.set_task(tid, "ok", res.get("note"), res.get("url"),
                                           res.get("order"))
-                if res.get("order"):
-                    await self.state.add_order(prof.id, task["host"], res["order"])
-                await self.notifier.send("CHECKOUT", "ok",
+                await self.state.add_order(prof.id, task["host"], res["order"])
+                await self.notifier.send("ERFOLG", "ok",
                                          {"Profil": prof.id, "Host": task["host"],
-                                          "Order": res.get("order") or "-",
-                                          "URL": res.get("url") or "-"})
+                                          "Produkt": task.get("title") or "-",
+                                          "Preis": task.get("price") or "-",
+                                          "Order": res["order"], "Konto": prof.email,
+                                          "Zeit": time.strftime("%Y-%m-%d %H:%M:%S")})
+                return
+            if res["ok"]:  # kein Order-Beleg -> nur vorbereitet, kein Erfolg
+                await self.state.set_task(tid, "prepared", res.get("note"), res.get("url"))
+                CONSOLE.print(f"[cyan]prepared[/] {prof.id}: {res.get('note')}")
                 return
             self.q.banned(res.get("note") or "")
             await self.state.set_task(tid, "retry" if attempt + 1 < self.cfg.max_retries
@@ -1291,7 +1354,8 @@ class Orchestrator:
                 await asyncio.sleep(self.cfg.retry_backoff_s * (attempt + 1))
             else:
                 await self.notifier.send("Task fail", "fail",
-                                         {"Profil": prof.id, "Grund": res.get("note", "-")})
+                                         {"Profil": prof.id, "Grund": res.get("note", "-"),
+                                          "Cart-Link": res.get("url") or "-"}, error=True)
 
     async def drain(self):
         if self.tasks:
@@ -1369,19 +1433,46 @@ async def cmd_watch(cfg, state, pool, notifier, solver, mode, hosts):
             await browser.stop()
 
 
-async def _drop_wait_until(at: str):
-    """Wartet bis HH:MM (Scheduler). Gibt Sekunden bis dahin zurueck."""
-    h, _, m = at.partition(":")
-    hh, mm = int(h or 0), int(m or 0)
+def _at_deadline(at: str) -> float | None:
+    """HH:MM oder HH:MM:SS -> Sekunden bis dahin als monotone Deadline.
+    Sekundengenau; aehnliche Uhrzeit heute, sonst morgen. None wenn unparsbar."""
     import datetime as _dt
+    parts = at.split(":")
+    if len(parts) not in (2, 3):
+        return None
+    try:
+        hh, mm = int(parts[0]), int(parts[1])
+        ss = int(parts[2]) if len(parts) == 3 else 0
+    except ValueError:
+        return None
+    if not (0 <= hh < 24 and 0 <= mm < 60 and 0 <= ss < 60):
+        return None
     now = _dt.datetime.now()
-    target = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
+    target = now.replace(hour=hh, minute=mm, second=ss, microsecond=0)
     if target <= now:
-        target = target + _dt.timedelta(days=1)
-    secs = (target - now).total_seconds()
-    CONSOLE.print(f"[bold]Scheduler[/]: warte bis {hh:02d}:{mm:02d} "
-                  f"({int(secs // 60)}min).")
-    await asyncio.sleep(secs)
+        target += _dt.timedelta(days=1)
+    return time.monotonic() + (target - now).total_seconds()
+
+
+async def _wait_until(deadline: float | None):
+    """Wartet bis zur monotone Deadline (Sekundengenauigkeit)."""
+    if deadline is None:
+        return
+    while True:
+        d = deadline - time.monotonic()
+        if d <= 0:
+            return
+        await asyncio.sleep(min(1.0, d))
+
+
+def _pick_variant(prod: dict) -> dict | None:
+    """Bevorzugt eine verfuegbare Variante, sonst die erste."""
+    if not prod or not prod.get("variants"):
+        return None
+    for v in prod["variants"]:
+        if v.get("available"):
+            return v
+    return prod["variants"][0]
 
 
 # --------------------------------------------------------------- landing resolve
@@ -1393,10 +1484,35 @@ def _slug_from_url(url: str) -> str:
 
 
 def _extract_handles_from_html(html: str) -> set:
-    """Produkt-Handles aus dem HTML: /products/<handle>-Links (deckt auch
-    eingebettete Objekte und JSON-LD-Urls ab)."""
-    return {m.group(1) for m in re.finditer(r"/products/([a-z0-9][a-z0-9\-]+)", html)
-            if len(m.group(1)) > 3}
+    """Produkt-Handles aus dem HTML: /products/<handle>-Links (deckt Links,
+    eingebettete Objekte und JSON-LD-Urls ab) plus explizite "handle"-Felder.
+    Collection-IDs werden separat ueber _extract_collections geliefert."""
+    out = set()
+    for m in re.finditer(r"/products/([a-z0-9][a-z0-9\-]+)", html):
+        h = m.group(1)
+        if len(h) > 3:
+            out.add(h)
+    for m in re.finditer(r'"handle"\s*:\s*"([a-z0-9][a-z0-9\-]+)"', html):
+        h = m.group(1)
+        if len(h) > 3:
+            out.add(h)
+    for m in re.finditer(r'data-product-id="(\d+)"', html):
+        pass  # numerische ID -> kein Handle; bleibt fuer collection/gid-Nutzung
+    return out
+
+
+def _extract_collections(html: str) -> set:
+    """Collection-IDs aus dem HTML (data-collection-id / "id" in Collections,
+    /collections/<handle>-Links und gid://shopify/Collection/<id>)."""
+    out = set()
+    for m in re.finditer(r'gid://shopify/Collection/(\d+)', html):
+        out.add(m.group(1))
+    for m in re.finditer(r'data-collection-id="(\d+)"', html):
+        out.add(m.group(1))
+    for m in re.finditer(r'/collections/([a-z0-9][a-z0-9\-]+)', html):
+        if len(m.group(1)) > 2:
+            out.add("handle:" + m.group(1))
+    return out
 
 
 def _slug_candidates(slug: str) -> set:
@@ -1451,6 +1567,38 @@ async def _storefront_product(s: AsyncSession, cfg: Settings, host: str,
                 for v in data.get("variants", {}).get("edges", [])]
     return {"handle": data.get("handle", handle), "title": data.get("title", ""),
             "variants": variants}
+
+
+async def _collection_products(s: AsyncSession, cfg: Settings, host: str,
+                               col) -> set:
+    """Produkt-Handles einer Collection (handle oder numerische gid)."""
+    sf = await storefront_cfg(s, cfg, host)
+    if not sf:
+        return set()
+    dom, tok = sf
+    if col.startswith("handle:"):
+        query = ("query($h:String!){collection(handle:$h){products(first:20){"
+                 "edges{node{handle}}}}}")
+        var, key = {"h": col[7:]}, "handle"
+    else:
+        gid = f"gid://shopify/Collection/{col}"
+        query = ("query($h:ID!){collection(id:$h){products(first:20){"
+                 "edges{node{handle}}}}}")
+        var, key = {"h": gid}, "id"
+    try:
+        r = await s.post(f"https://{dom}/api/{SF_VERSION}/graphql.json",
+                         json={"query": query, "variables": var},
+                         headers={**base_headers(cfg, True), "content-type": "application/json",
+                                  "x-shopify-storefront-access-token": tok})
+        if r.status_code != 200:
+            return set()
+        data = (r.json().get("data") or {}).get("collection")
+        if not data:
+            return set()
+        return {e["node"]["handle"] for e in
+                data.get("products", {}).get("edges", []) if e["node"].get("handle")}
+    except Exception:
+        return set()
 
 
 async def _search_suggest(s: AsyncSession, cfg: Settings, host: str,
@@ -1536,6 +1684,13 @@ async def resolve_product(s: AsyncSession, cfg: Settings, host: str,
         p = await _resolve_from(s, cfg, host, _extract_handles_from_html(html))
     if p:
         return p
+    if html:  # Collection-IDs aus der Landing-Page
+        col_handles = set()
+        for col in _extract_collections(html):
+            col_handles |= await _collection_products(s, cfg, host, col)
+        p = await _resolve_from(s, cfg, host, col_handles)
+    if p:
+        return p
     if slug:
         p = await _resolve_from(s, cfg, host, await _search_suggest(s, cfg, host, slug))
     if p:
@@ -1553,15 +1708,23 @@ async def resolve_product(s: AsyncSession, cfg: Settings, host: str,
     return {}
 
 
-async def _variant_available(s: AsyncSession, cfg: Settings, host: str,
-                             handle: str, variant_id: int):
-    prod = await _storefront_product(s, cfg, host, handle)
-    if not prod:
-        return False, None
-    for v in prod["variants"]:
-        if int(v["id"]) == int(variant_id):
-            return v["available"], v["price"]
-    return False, None
+async def _available(s: AsyncSession, cfg: Settings, host: str,
+                     variant_id: int, handle: str = "") -> bool:
+    """Verfuegbarkeit der Variante. Ein Endpunkt: product(handle:) wenn ein
+    Handle bekannt ist, sonst storefront_products (neueste zuerst)."""
+    if handle:
+        prod = await _storefront_product(s, cfg, host, handle)
+        if prod:
+            return any(int(v["id"]) == int(variant_id) and v.get("available")
+                       for v in prod["variants"])
+        return False
+    st, items, _ = await storefront_products(s, cfg, host, 250)
+    if st == 200:
+        for p in items or []:
+            for v in p.get("variants", []) or []:
+                if int(v.get("id", 0)) == int(variant_id):
+                    return bool(v.get("available"))
+    return False
 
 
 async def _build_cart(s: AsyncSession, cfg: Settings, host: str,
@@ -1590,38 +1753,166 @@ async def _build_cart(s: AsyncSession, cfg: Settings, host: str,
     return (cart.get("cart") or {}).get("checkoutUrl")
 
 
-async def _poll_and_link(s: AsyncSession, cfg: Settings, host: str, handle: str,
-                         variant_id: int, qty: int, maxp: float):
-    """ID-Polling auf availableForSale:true (1-2 s), dann Cart -> Checkout-Link.
-    maxp wird vor dem Cart nochmals geprueft. -> (link, preis) oder (None, None)."""
+async def _wait_available(s: AsyncSession, cfg: Settings, host: str,
+                          variant_id: int, handle: str = "") -> bool:
+    """Poll auf availableForSale, 1,0 s, gleiche Session + gleicher Proxy.
+    -> True sobald die Variante verfuegbar ist (max_wait_s = Ende)."""
     end = time.monotonic() + float(cfg.queue.get("max_wait_s", 1800))
+    poll = max(0.2, float(cfg.queue.get("poll_s", 1.0)))
     while time.monotonic() < end:
-        avail, price = await _variant_available(s, cfg, host, handle, variant_id)
-        if avail:
-            if maxp and price and price > maxp:
-                await asyncio.sleep(1.5)
-                continue
-            link = await _build_cart(s, cfg, host, variant_id, qty)
-            if link:
-                return link, price
-        await asyncio.sleep(1.5)
-    return None, None
+        if await _available(s, cfg, host, variant_id, handle):
+            return True
+        await asyncio.sleep(poll)
+    return False
+
+
+async def _cached_price(s: AsyncSession, cfg: Settings, host: str,
+                        vid) -> tuple[str, float]:
+    """Preis/Title der Variante aus dem Prewarm-Cache (Storefront, neueste
+    zuerst) - keine Live-Nachfrage im Drop."""
+    try:
+        st, items, _ = await storefront_products(s, cfg, host, 200)
+        if st == 200:
+            for p in items or []:
+                for v in p.get("variants", []) or []:
+                    if int(v.get("id", 0)) == int(vid):
+                        return p.get("title", ""), float(v.get("price") or 0)
+    except Exception:
+        pass
+    return "", 0.0
+
+
+async def _run_drop(cfg, state, pool, notifier, solver, host, vid, url,
+                    qty, mode, card, dry, deadline):
+    """Gemeinsamer Drop-Pfad fuer --target und --resolve.
+    Speed-Pfad: 90 s vor --at cf_clearance + Session + cartCreate (Cart-Link im
+    Speicher). Dann Poll auf availableForSale (1,0 s, ein Endpunkt, gleiche
+    Session + gleicher Proxy) und vollautomatischer Checkout. max_price aus dem
+    Prewarm-Cache, keine Live-Nachfrage. dry stoppt vor der Zahlung (Checkout-
+    Link als Beleg)."""
+    from utilities.quality import Quality
+    maxp = float((next((t for t in load_targets() if host in (t.get("hosts") or [])),
+                        None) or {}).get("max_price") or 0)
+    profs = [p for p in load_profiles(MODULE) if p.enabled]
+    prof = profs[0] if profs else None
+    q = Quality(MODULE)
+
+    prewarm = 90.0
+    if deadline is not None:
+        until_at = deadline - time.monotonic()
+        wait_first = max(0.0, until_at - prewarm)
+        if wait_first:
+            CONSOLE.print(f"[bold]Speed-Pfad[/]: Vorwaermen in {int(wait_first)}s "
+                          f"(90 s vor --at).")
+            await _wait_until(time.monotonic() + wait_first)
+
+    proxy = await pool.acquire()
+    s = session(cfg, proxy)
+    handle, title, price, variant = "", "", 0.0, None
+    try:
+        # Prewarm: frische cf_clearance ueber den Task-Proxy (IP-gebunden).
+        # Ohne Proxy ueberspringen (Storefront laeuft ohne cf; Browser-Cf nur
+        # fuer die gebundene Proxy-IP noetig).
+        if proxy:
+            try:
+                await asyncio.wait_for(cf_refresh(host, proxy=proxy), timeout=60)
+            except Exception as exc:
+                LOG.debug("prewarm cf: %s", exc)
+        if url:
+            prod = await resolve_product(s, cfg, host, url)
+            if not prod:
+                CONSOLE.print("[red]resolve: kein Produkt-Handle aufloesbar.[/]")
+                return
+            variant = _pick_variant(prod)
+            handle, title = prod.get("handle", ""), prod.get("title", "")
+            if not variant:
+                CONSOLE.print("[red]resolve: Produkt ohne Varianten.[/]")
+                return
+            vid = variant["id"]
+            price = float(variant.get("price") or 0)
+            CONSOLE.print(f"[green]resolve ok[/] {title} ({handle}) "
+                          f"Variante {vid} Preis {price}")
+        else:
+            handle = next((t.get("handle", "") for t in load_targets()
+                           if host in (t.get("hosts") or []) and t.get("handle")), "")
+            title, price = await _cached_price(s, cfg, host, vid)
+        if maxp and price and price > maxp:
+            CONSOLE.print(f"[red]Preis {price} > max_price {maxp}, Abbruch.[/]")
+            return
+        # cartCreate vorab -> Cart-Link im Speicher (Speed-Pfad)
+        cart_link = None
+        try:
+            cart_link = await _build_cart(s, cfg, host, vid, qty)
+        except Exception:
+            cart_link = None
+        if cart_link:
+            CONSOLE.print("[bold]Cart bereit[/] (im Speicher)")
+            await notifier.send("Cart bereit", "cart",
+                                {"Host": host, "Variant": vid, "Link": cart_link})
+        # auf --at warten (monotone Uhr, Sekundengenau)
+        if deadline is not None:
+            CONSOLE.print("[bold]Scheduler[/]: warte bis --at.")
+            await _wait_until(deadline)
+        if dry:
+            link = cart_link or await _build_cart(s, cfg, host, vid, qty)
+            if not link:
+                CONSOLE.print("[red]dry: kein Checkout-Link.[/]")
+            else:
+                CONSOLE.print(f"[bold green]CHECKOUT[/] {link}")
+            return
+        # Live: Poll auf availableForSale (1,0 s), dann vollautomatischer Checkout
+        if not await _wait_available(s, cfg, host, vid, handle):
+            CONSOLE.print("[red]Drop: Variante nicht verfuegbar (Zeitueberschreitung).[/]")
+            await notifier.send("Drop fehlgeschlagen", "fail",
+                                {"Host": host, "Variante": vid,
+                                 "Grund": "nicht verfuegbar"}, error=True)
+            return
+        link = cart_link or await _build_cart(s, cfg, host, vid, qty)
+        if not link:
+            CONSOLE.print("[red]Drop: kein Cart-Link.[/]")
+            return
+        if not prof:
+            CONSOLE.print("[red]Drop: kein Profil vorhanden.[/]")
+            return
+        http = HttpCheckout(cfg, state, pool, solver, notifier)
+        res = await http.run_prebuilt(s, host, link, prof, dry=False, card=card)
+        ts = time.strftime("%Y-%m-%d %H:%M:%S")
+        q.increment("attempts")
+        if res.get("order"):
+            q.success()
+            await notifier.send("ERFOLG", "ok",
+                                {"Produkt": title or "-", "Preis": price,
+                                 "Order": res["order"], "Konto": prof.email,
+                                 "Zeit": ts, "Link": res.get("url", link)})
+            CONSOLE.print(f"[bold green]ERFOLG[/] Order {res['order']}")
+        else:
+            q.banned(res.get("note", ""))
+            await notifier.send("Checkout-Fehler", "fail",
+                                {"Host": host, "Variante": vid,
+                                 "Ursache": res.get("note", "?"),
+                                 "Cart-Link": link}, error=True)
+            CONSOLE.print(f"[red]Checkout-Fehler[/] {res.get('note')}")
+    finally:
+        await s.close()
+        q.finish()
 
 
 async def cmd_drop(cfg, state, pool, notifier, solver, host, vid, tasks, qty, mode,
                    card=False, at="", target="", dry=True, resolve=""):
+    # ---- Zielaufloesung (Aufgabe 1) ----
     if resolve:
         if MODULE != "topps":
             CONSOLE.print("[red]--resolve ist nur im Modul topps verfuegbar.[/]")
             return
-        if not at:
-            CONSOLE.print("[yellow]--resolve ohne --at: sofortiger Lauf (--at empfohlen).[/]")
-        if at:
-            await _drop_wait_until(at)
-        await _resolve_and_drop(cfg, state, pool, notifier, solver, resolve, qty,
-                                mode, card, dry)
-        return
-    if target:
+        from urllib.parse import urlparse
+        r_host = (urlparse(resolve).netloc or "").lower()
+        if r_host.startswith("www."):
+            r_host = r_host[4:]
+        host = r_host or host or (cfg.hosts[0] if cfg.hosts else "")
+        if not host:
+            CONSOLE.print("[red]resolve: kein Host in URL und keine cfg.hosts.[/]")
+            return
+    elif target:
         t = next((x for x in load_targets()
                   if x.get("name", "").lower() == target.lower()), None)
         if not t:
@@ -1632,88 +1923,19 @@ async def cmd_drop(cfg, state, pool, notifier, solver, host, vid, tasks, qty, mo
         qty = qty or t.get("quantity", 1)
         tasks = tasks or t.get("tasks", 10)
         mode = mode if mode else t.get("mode", "cart")
-    if not vid:
-        CONSOLE.print("[red]--variant oder --target mit Variante erforderlich.[/]")
+    if not vid and not resolve:
+        CONSOLE.print("[red]--target oder --resolve erforderlich - kein Blindlauf.[/]")
         return
-    if at:
-        await _drop_wait_until(at)
-    if cfg.proxy.get("precheck", True) and pool.items:
-        r = await pool.precheck(cfg, host)
-        CONSOLE.print(f"[bold]Proxy-Vorpruefung[/]: {r['checked']} geprueft, "
-                      f"{r['alive']} ok, {r['dead']} tot -> var/proxystats.csv")
-    CONSOLE.print(f"[bold]drop[/] {host} Variante {vid} x{qty} ({tasks} Tasks, "
-                  f"Modus {mode}{', dry' if dry else ''})")
-    # Prewarm: cf_clearance schon vor dem Loslegen holen
-    try:
-        await cf_refresh(host)
-    except Exception:
-        pass
-    http_engine = HttpCheckout(cfg, state, pool, solver, notifier)
-    browser = None
-    if mode == "browser":
-        browser = BrowserCheckout(cfg, pool, solver, notifier)
-        await browser.start()
-    maxp = float((next((t for t in load_targets()
-                        if host in (t.get("hosts") or [])) , None) or {}).get("max_price") or 0)
-    orch = Orchestrator(cfg, state, pool, notifier, load_profiles(MODULE), http_engine, browser)
-    await orch.spawn(host, vid, qty, mode, tasks, card and not dry, maxp)
-    await orch.drain()
-    if browser:
-        await browser.stop()
-    CONSOLE.print(await state.stats())
-
-
-async def _resolve_and_drop(cfg, state, pool, notifier, solver, url: str,
-                            qty: int, mode: str, card: bool, dry: bool):
-    """--resolve: Landing-URL -> Handle -> Varianten-ID -> Cart -> Checkout-Link.
-    Alle Requests ueber denselben Proxy + dieselbe Session. max_price-Pruefung
-    aus targets.yaml (Host-Match), danach reines ID-Polling."""
-    from urllib.parse import urlparse
-    host = (urlparse(url).netloc or "").lower()
-    if host.startswith("www."):
-        host = host[4:]
-    if not host:
-        host = cfg.hosts[0] if cfg.hosts else ""
-    if not host:
-        CONSOLE.print("[red]resolve: kein Host in URL und keine cfg.hosts.[/]")
+    deadline = _at_deadline(at) if at else None
+    if at and deadline is None:
+        CONSOLE.print(f"[red]--at '{at}' ungueltig (HH:MM oder HH:MM:SS).[/]")
         return
-    proxy = await pool.acquire()
-    maxp = float((next((t for t in load_targets() if host in (t.get("hosts") or [])),
-                        None) or {}).get("max_price") or 0)
-    s = session(cfg, proxy)
-    try:
-        CONSOLE.print(f"[bold]resolve[/] {host} {url}"
-                      + (f" (max_price {maxp})" if maxp else ""))
-        # Schritt 1: frische cf_clearance ueber den Task-Proxy (IP-gebunden)
-        try:
-            await cf_refresh(host, proxy=proxy)
-        except Exception as exc:
-            LOG.debug("resolve cf_refresh: %s", exc)
-        prod = await resolve_product(s, cfg, host, url)
-        if not prod:
-            CONSOLE.print("[red]resolve: kein Produkt-Handle aufloesbar.[/]")
-            return
-        variant = prod["variants"][0] if prod["variants"] else None
-        if not variant:
-            CONSOLE.print("[red]resolve: Produkt ohne Varianten.[/]")
-            return
-        price = variant.get("price", 0)
-        CONSOLE.print(f"[green]resolve ok[/] {prod.get('title', '?')} "
-                      f"({prod.get('handle')}) Variante {variant['id']} Preis {price}")
-        if maxp and price and price > maxp:
-            CONSOLE.print(f"[red]resolve: Preis {price} > max_price {maxp}, Abbruch.[/]")
-            return
-        link, final_price = await _poll_and_link(s, cfg, host, prod["handle"],
-                                                 variant["id"], qty, maxp)
-        if not link:
-            CONSOLE.print("[red]resolve: kein Checkout-Link (Zeitueberschreitung).[/]")
-            return
-        CONSOLE.print(f"[bold green]CHECKOUT[/] {link}")
-        await notifier.send(f"Drop CHECKOUT {prod.get('title', '?')[:100]}", "new",
-                            {"Host": host, "Variante": variant["id"], "Preis": final_price,
-                             "Link": link})
-    finally:
-        await s.close()
+    # Keine 1000er-Proxy-Vorpruefung im Drop (Speed-Pfad): Proxy-Gesundheit
+    # regelt acquire()/mark_dead() zur Laufzeit. Vollprecheck bleibt ueber watch.
+    CONSOLE.print(f"[bold]drop[/] {host} {'resolve' if resolve else 'Variante ' + str(vid)} "
+                  f"x{qty} ({tasks} Tasks, Modus {mode}{', dry' if dry else ''})")
+    await _run_drop(cfg, state, pool, notifier, solver, host, vid, resolve,
+                    qty, mode, card, dry, deadline)
 
 
 # --------------------------------------------------------------- cli generisch
@@ -1740,7 +1962,7 @@ def argv_parser(prog: str = "baki", module: str | None = None):
     d.add_argument("--mode", default="cart", choices=["cart", "browser"])
     d.add_argument("--card-http", action="store_true")
     d.add_argument("--dry", action="store_true", help="Stopp vor Zahlung")
-    d.add_argument("--at", default="", help="HH:MM Wartezeit (Scheduler)")
+    d.add_argument("--at", default="", help="HH:MM oder HH:MM:SS Wartezeit (Scheduler)")
     d.add_argument("--target", default="", help="Name aus config/targets.yaml")
     d.add_argument("--resolve", default="",
                    help="Landing-URL zur Produkt-Aufloesung (nur Modul topps, nur mit --at sinnvoll)")
@@ -1770,6 +1992,8 @@ def main(argv=None):
     state = State(str(cfg.path(cfg.state_db)))
     pool = ProxyPool(state, MODULE)
     notifier = Notifier(ENV.get("DISCORD_WEBHOOK", ""), ENV.get("DISCORD_WEBHOOK_ERRORS", ""))
+    CONSOLE.print("[dim]Webhook: " + ("ok" if notifier.url else "nicht gesetzt") +
+                  (" (Errors ok)" if notifier.err else " (Errors fehlt)") + "[/]")
     solver = Solver(cfg)
 
     if a.cmd == "profiles-check":

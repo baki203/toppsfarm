@@ -14,7 +14,8 @@
 # eintragen, sonst zuerst `watch` laufen lassen und Variante aus dem Log nehmen.
 - name: "Topps Erstling"
   match: ""
-  variant: 0
+  handle: "yaxel-lendeborg-2026-27-nba-topps-now-r-card-95"
+  variant: 51171485155568
   hosts: [de.topps.com]
   quantity: 1
   mode: cart
