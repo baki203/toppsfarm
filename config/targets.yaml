@@ -1,24 +1,40 @@
 ﻿# Harte Ziele. Ohne Eintrag laeuft Watch auf alles.
-# name: Anzeige/--target, match: Handle-Substring, hosts: erlaubte Shops,
-# variant: (optional) feste Variante, quantity, mode: cart/browser, tasks,
-# max_price: optional harte Preisgrenze, asin: optional (Amazon) -> hier leer.
+# Spalten je Set:
+#   name/match: Anzeige / Handle-Substring, set: Setname (fuer Aufloesung),
+#   handle: festes Produkt-Handle, variant_id: feste Variante (Schnellweg),
+#   priority: Reihenfolge (niedriger zuerst), min_price/max_price: Preisband,
+#   qty: Menge, hosts: erlaubte Shops, mode: cart/browser, tasks.
+# Nutzerlisten je Set (additiv zu den Code-Defaults, leer = Defaults aktiv):
+#   negativ: nie kaufen, positiv: Zusatzsignale, allow: Ausnahmen (blockt nie).
+# min_price-Vorschlag (Median der letzten 5 Hobby-Box-Preise minus 30 %) wird
+# als Kommentar beim Auto-Write-Back eingetragen.
 - name: "Chrome UEFA"
   match: "chrome-uefa"
+  set: "Chrome UEFA"
   hosts: [de.topps.com, es.topps.com, fr.topps.com, it.topps.com]
-  quantity: 1
+  qty: 1
   mode: cart
   tasks: 10
+  min_price: 0
   max_price: 0
+  priority: 1
+  negativ: []
+  positiv: []
+  allow: []
 
-# Beispiel fuer einen Topps-EU-Drop. Variante/Handle nach Live-Verfuegbarkeit
-# eintragen, sonst zuerst `watch` laufen lassen und Variante aus dem Log nehmen.
 - name: "Topps Erstling"
   match: ""
+  set: "Topps Erstling"
   handle: "yaxel-lendeborg-2026-27-nba-topps-now-r-card-95"
-  variant: 51171485155568
+  variant_id: 51171485155568
   hosts: [de.topps.com]
-  quantity: 1
+  qty: 1
   mode: cart
   tasks: 5
+  min_price: 0
   max_price: 0
+  priority: 2
+  negativ: []
+  positiv: []
+  allow: []
   asin: ""

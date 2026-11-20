@@ -47,6 +47,25 @@ Stand 2026-11-20, ARBEITSWEISE (8 Punkte) + 4 QUALITY-Luecken. Deutsch. Je Punkt
     compileall 0, Topps-Selftest 4/4 200, --target-Drydrop -> echter
     shop-de.Checkout-Link, --resolve-Dryrun -> exaktes Handle+Variante+Preis,
     --at-HH:MM:SS-Prewarm -> warte bis --at -> Checkout, Poll 1,0 s belegt.
+25d TOPPS-DROP VOLLAUTOMATISCH (AUFGABE 1-6): erledigt. shopify_core.py: 1) Zielwege
+    --target <name|variant-id|handle> (mehrfach) schnell -> direkt Poll (kein Resolve,
+    Log 'target'); Fallback --set <setname> oder --resolve <set-url> (Kaskade). Ohne
+    beides Fehler, kein Blindlauf. 2) ID-Validierung nur T-90..T-10 (nie in letzten 10s),
+    stale -> auto Neuaufloesung + Write-back (Timestamp/Quelle/alte ID). 3) Kaufentscheidung:
+    Signale (a) Titel hobby|jumbo, (b) Tags/typ/Collection hobby|display|box, (c) Preisband;
+    Kauf bei >=2/3; Einzelprodukt-Regel (nur Variante + Preis im Band -> kaufen). Nutzerlisten
+    je Set (negativ/positiv/allow, Precedence allow>negativ>positiv>Preisband, leer=Defaults,
+    Wortgrenzen+Plural-s). Code-Negativ value/mega/eco/tin/starter/blaster/retail/loose;
+    Zubehoer sleeve/binder/toploader/playmat immer raus. Whitelist hobby vor jumbo (hobby 20s,
+    jumbo Fallback 0s), jumbo-only sofort. min_price-Vorschlag (Median 5er Hobby-Preise -30%)
+    als Kommentar in targets.yaml. YAML-Fehler -> Abbruch mit Zeilennummer. targets.yaml neues
+    Schema (set/handle/variant_id/priority/min_price/max_price/qty + Listen). 4) Speed: 90s vor
+    --at cf+Session+cartCreate fuer alle Plan-Varianten, Poll 1,0s, eine Order je Konto.
+    5) Checkout+Webhook: vollautomatisch, ERFOLG nur mit Order, Fehler an _ERRORS.
+    Getestet: compileall 0, Entscheidungstests 22/22 (Signale, Listen, Whitelist, Preisband,
+    Plural-s), --target numerisch+Name -> CHECKOUT, --resolve loest+entscheidet (Einzelkarte
+    korrekt verworfen), --set Setname-only kein Treffer (erwartet), Write-back-Patch ok,
+    Topps-Selftest 4/4 200.
 
 ## BLOCKER
 - Skyridge-GitBook auth-geschuetzt (SPA nur JS-Shell, Content-API 403, kein Wayback-Mirror). Erkenntnisse stattdessen aus lokaler settings.json + crashlog.log (PyInstaller-Tracebacks) + PepperScripts-Doku.

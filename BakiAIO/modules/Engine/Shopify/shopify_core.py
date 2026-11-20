@@ -255,7 +255,16 @@ def load_profiles(module: str = MODULE, root: Path | None = None) -> list:
 
 def load_targets() -> list:
     p = ROOT / "config" / "targets.yaml"
-    return (yaml.safe_load(p.read_text(encoding="utf-8")) or []) if p.exists() else []
+    if not p.exists():
+        return []
+    try:
+        return (yaml.safe_load(p.read_text(encoding="utf-8")) or [])
+    except yaml.YAMLError as exc:
+        # YAML-Fehler -> Abbruch mit Zeilennummer, kein Lauf auf Defaults.
+        mark = getattr(exc, "problem_mark", None)
+        line = mark.line + 1 if mark else "?"
+        CONSOLE.print(f"[red]targets.yaml Fehler (Zeile {line}): {exc}[/]")
+        return []
 
 
 def setup_log(cfg: Settings):
@@ -1540,13 +1549,14 @@ async def _load_landing(s: AsyncSession, cfg: Settings, host: str,
 
 async def _storefront_product(s: AsyncSession, cfg: Settings, host: str,
                               handle: str) -> dict | None:
-    """product(handle:) via Storefront -> {handle, title, variants[]} oder None,
-    wenn das Handle nicht aufloesbar (null)."""
+    """product(handle:) via Storefront -> {handle, title, productType, tags,
+    collections, variants[]} oder None, wenn das Handle nicht aufloesbar (null)."""
     sf = await storefront_cfg(s, cfg, host)
     if not sf:
         return None
     dom, tok = sf
-    q = ("query($h:String!){product(handle:$h){id handle title "
+    q = ("query($h:String!){product(handle:$h){id handle title productType tags "
+         "collections(first:20){edges{node{handle}}} "
          "variants(first:50){edges{node{id title availableForSale "
          "price{amount}}}}}}")
     try:
@@ -1566,6 +1576,11 @@ async def _storefront_product(s: AsyncSession, cfg: Settings, host: str,
                  "price": float((v["node"].get("price") or {}).get("amount") or 0)}
                 for v in data.get("variants", {}).get("edges", [])]
     return {"handle": data.get("handle", handle), "title": data.get("title", ""),
+            "productType": data.get("productType", ""),
+            "tags": list(data.get("tags", []) or []),
+            "collections": [c["node"]["handle"] for c in
+                            (data.get("collections", {}) or {}).get("edges", [])
+                            if (c.get("node") or {}).get("handle")],
             "variants": variants}
 
 
@@ -1708,6 +1723,332 @@ async def resolve_product(s: AsyncSession, cfg: Settings, host: str,
     return {}
 
 
+# --------------------------------------------------------------- buy decision
+# Code-Defaults fuer "nie kaufen". Nutzerlisten (negativ/positiv/allow) in
+# targets.yaml sind additiv; leere Liste = Defaults bleiben aktiv.
+CODE_NEGATIV = ("value", "mega", "eco", "tin", "tins", "starter", "blaster",
+                "retail", "loose", "single pack", "booster")
+CODE_ACCESSORIES = ("sleeve", "binder", "top loader", "toploader", "playmat")
+
+
+def _low(text) -> str:
+    return (text or "").lower()
+
+
+def _word_match(pattern, text) -> bool:
+    """Teilstring-Match, case-insensitive, Wortgrenzen; erlaubt Plural-s
+    ('sleeve' matcht 'sleeves')."""
+    return bool(re.search(r"\b" + re.escape(_low(pattern)) + r"s?\b", _low(text)))
+
+
+def _list_hit(patterns, text) -> str | None:
+    for p in patterns or []:
+        if _word_match(p, text):
+            return str(p)
+    return None
+
+
+def _setname_tokens(setname) -> set:
+    return {t for t in re.findall(r"[a-z0-9]+", _low(setname)) if len(t) > 2}
+
+
+def _matches_set(setname, title, handle) -> bool:
+    """Setname-Tokens muessen im Titel oder Handle matchen (mind. 2, case-
+    insensitive). Weniger als 2 aussagekraeftige Tokens -> kein Match."""
+    toks = _setname_tokens(setname)
+    if len(toks) < 2:
+        return False
+    blob = _low(f"{title} {handle}")
+    return sum(1 for t in toks if t in blob) >= 2
+
+
+def _box_kind(prod) -> str | None:
+    """Box-Art des Produkts (jumbo vor hobby, sonst None)."""
+    text = _low(f"{prod.get('title', '')} {prod.get('productType', '')} "
+                f"{' '.join(prod.get('tags', []) or [])} "
+                f"{' '.join(prod.get('collections', []) or [])}")
+    if "jumbo" in text:
+        return "jumbo"
+    if "hobby" in text:
+        return "hobby"
+    return None
+
+
+def _variant_price(prod) -> float:
+    """Preis der bevorzugten (verfuegbaren) Variante, sonst der ersten."""
+    vs = prod.get("variants", []) or []
+    if not vs:
+        return 0.0
+    for v in vs:
+        if v.get("available") and v.get("price"):
+            return float(v["price"])
+    return float((vs[0] or {}).get("price") or 0)
+
+
+def _decide(t, prod) -> tuple[bool, str, list]:
+    """Kaufentscheidung. Praezedenz: allow > negativ > positiv > Preisband.
+    -> (kaufen, grund, signale)."""
+    text = _low(f"{prod.get('title', '')} {prod.get('handle', '')} "
+                f"{' '.join(prod.get('tags', []) or [])} {prod.get('productType', '')} "
+                f"{' '.join(prod.get('collections', []) or [])}")
+    price = _variant_price(prod)
+    minp = float(t.get("min_price") or 0)
+    maxp = float(t.get("max_price") or 0)
+    allow = list(t.get("allow") or [])
+    neg = list(CODE_NEGATIV) + list(t.get("negativ") or [])
+    pos = list(t.get("positiv") or [])
+
+    if allow:
+        m = _list_hit(allow, text)
+        if m:
+            return True, f"allow: {m}", ["allow"]
+    m = _list_hit(neg, text)
+    if m:
+        return False, f"negativ: {m}", ["negativ"]
+    m = _list_hit(CODE_ACCESSORIES, text)
+    if m:
+        return False, f"zubehoer: {m}", ["zubehoer"]
+    if minp and price and price < minp:
+        return False, f"unter min_price: {prod.get('title', '')} {price}", ["preis"]
+    if maxp and price and price > maxp:
+        return False, f"ueber max_price: {prod.get('title', '')} {price}", ["preis"]
+
+    a = bool(re.search(r"\b(?:hobby|jumbo)\b", _low(prod.get("title", ""))))
+    b = _list_hit(("hobby", "display", "box"),
+                  f"{' '.join(prod.get('tags', []) or [])} {prod.get('productType', '')} "
+                  f"{' '.join(prod.get('collections', []) or [])}") is not None
+    c = bool(price > 0) and (not (minp or maxp) or (minp <= price <= maxp))
+    sig = []
+    if a:
+        sig.append("a:hobby/jumbo")
+    if b:
+        sig.append("b:tags/typ/collection")
+    if c:
+        sig.append("c:preisband")
+    pm = _list_hit(pos, text)
+    if pm:
+        sig.append("positiv:" + pm)
+    if len(sig) >= 2:
+        return True, "signale " + ",".join(sig), sig
+    # Einzelprodukt-Regel: einzige Variante des Sets + Preis im Band
+    if len(prod.get("variants", []) or []) == 1 and c:
+        return True, "einzelvariante+preisband", ["single"]
+    return False, f"signale {len(sig)}/3", sig
+
+
+def _select_plan(cands, t) -> tuple[list, str]:
+    """Whitelist-Reihenfolge. -> (plan, grund).
+    hobby vor jumbo; beide gleichzeitig -> hobby zuerst, jumbo nach 20 s;
+    nur eine Art -> sofort (keine Wartezeit)."""
+    hobby = [c for c in cands if _box_kind(c) == "hobby"]
+    jumbo = [c for c in cands if _box_kind(c) == "jumbo"]
+    other = [c for c in cands if _box_kind(c) not in ("hobby", "jumbo")]
+    plan: list[tuple[int, str, float]] = []  # (vid, handle, budget_s)
+    if hobby:
+        plan = [(_variant_id(c), c.get("handle", ""), 20.0) for c in hobby]
+        if jumbo:
+            plan += [(_variant_id(c), c.get("handle", ""), 0.0) for c in jumbo]
+            return plan, "hobby gewinnt, jumbo Fallback nach 20 s"
+        return plan, "hobby"
+    if jumbo:
+        plan = [(_variant_id(c), c.get("handle", ""), 0.0) for c in jumbo]
+        return plan, "jumbo (sofort)"
+    if other:
+        plan = [(_variant_id(c), c.get("handle", ""), 0.0) for c in other]
+        return plan, "einzelprodukt"
+    return [], "kein whitelist-treffer"
+
+
+def _variant_id(prod) -> int:
+    v = _pick_variant(prod)
+    return int(v["id"]) if v else 0
+
+
+def _norm_target(t) -> dict:
+    t = dict(t or {})
+    t.setdefault("set", t.get("name", ""))
+    t["variant_id"] = t.get("variant_id") or t.get("variant")
+    t["qty"] = t.get("qty") or t.get("quantity", 1)
+    return t
+
+
+def _load_targets_norm() -> list:
+    return [_norm_target(t) for t in load_targets()]
+
+
+# --------------------------------------------------------------- id validierung
+async def _validate_id(s, cfg, host, vid, handle) -> str:
+    """Vorlauf-Validierung der Varianten-ID. -> 'ok' | 'stale' | 'dead'.
+    product(handle:) null oder leere variants => stale (Ziel veraltet)."""
+    if not handle:
+        return "unbekannt"
+    prod = await _storefront_product(s, cfg, host, handle)
+    if not prod:
+        return "stale"
+    vs = prod.get("variants", []) or []
+    if not vs:
+        return "stale"
+    if not any(int(v.get("id", 0)) == int(vid) for v in vs):
+        return "dead"
+    return "ok"
+
+
+# --------------------------------------------------------------- set aufloesung
+def _slug(setname: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", _low(setname)).strip("-") or setname
+
+
+async def _candidate_handles(s, cfg, host, setname, url) -> list:
+    """Sammelt Handle-Kandidaten ueber die Kaskade. Jede Stufe nur, wenn die
+    vorige nichts lieferte. -> deduplizierte Liste von Handles."""
+    out: list[str] = []
+
+    def add(handles):
+        for h in handles or []:
+            if h and h not in out:
+                out.append(h)
+
+    html = await _load_landing(s, cfg, host, url) if url else ""
+    slug = _slug_from_url(url) if url else _slug(setname)
+    own = None
+    if url:
+        own = (re.search(r"/products/([a-z0-9][a-z0-9\-]+)", url) or [None, None])[1]
+    if own:
+        add([own])
+    if not out and html:  # Stufe 2: HTML-Handles
+        add(_extract_handles_from_html(html))
+    if not out and html:  # Collection-IDs aus der Landing-Page
+        for col in _extract_collections(html):
+            add(await _collection_products(s, cfg, host, col))
+    if not out:  # Stufe 3: suggest.json
+        add(await _search_suggest(s, cfg, host, slug))
+    if not out:  # Stufe 4: neue Produkte
+        add(await _new_products(s, cfg, host))
+    if not out:  # Stufe 5: Sitemap-Sprung
+        add(await _sitemap_jump(s, cfg, host))
+    if not out:  # Stufe 6: Slug-Kandidaten
+        add(_slug_candidates(slug))
+    return out
+
+
+async def _resolve_set(s, cfg, host, setname, url) -> list:
+    """Set/Resolve -> Liste aufgeloester Produkt-Dicts, nach Setname gefiltert."""
+    handles = await _candidate_handles(s, cfg, host, setname, url)
+    cands = []
+    for h in handles:
+        p = await _storefront_product(s, cfg, host, h)
+        if not p:
+            continue
+        if setname and not _matches_set(setname, p.get("title", ""), h):
+            continue
+        cands.append(p)
+    return cands
+
+
+# --------------------------------------------------------------- targets write-back
+def _write_targets(text_patch: str, setname: str):
+    """Schreibt eine Variante/Handle-Aktualisierung in targets.yaml zurueck.
+    Textbasiert, damit Kommentare erhalten bleiben. -> bool."""
+    p = ROOT / "config" / "targets.yaml"
+    if not p.exists():
+        return False
+    lines = p.read_text(encoding="utf-8").splitlines()
+    # Block eines Sets finden (eingeruecktes `- name:`/`- set:` Feld bis zur
+    # naechsten Liste auf gleicher Ebene).
+    start = None
+    for i, ln in enumerate(lines):
+        m = re.match(r"^-\s+(?:set|name):\s*['\"]?(.*?)['\"]?\s*$", ln)
+        if m and (m.group(1) == setname or m.group(1).lower() == setname.lower()):
+            start = i
+            break
+    if start is None:
+        return False
+    end = len(lines)
+    for i in range(start + 1, len(lines)):
+        if re.match(r"^-\s+", lines[i]):
+            end = i
+            break
+    block = lines[start:end]
+    if not _patch_block(block, text_patch):
+        return False
+    lines[start:end] = block
+    p.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return True
+
+
+def _patch_block(block: list, patch: dict) -> bool:
+    changed = False
+    for key in ("variant_id", "variant", "handle"):
+        if key not in patch:
+            continue
+        for i, ln in enumerate(block):
+            if re.match(rf"^\s*{key}:", ln):
+                block[i] = f"  {key}: {patch[key]}"
+                changed = True
+                break
+        else:
+            block.insert(1, f"  {key}: {patch[key]}")
+            changed = True
+    if "min_price" not in patch and patch.get("suggestion"):
+        for i, ln in enumerate(block):
+            if re.match(r"^\s*min_price:", ln):
+                block[i] = f"  min_price: {patch['suggestion']}"
+                changed = True
+                break
+    # Kommentar-Zeilen (Timestamp, Quelle, alte ID, min_price-Vorschlag)
+    cmts = []
+    if patch.get("ts"):
+        cmts.append(f"  # updated: {patch['ts']} via {patch.get('source', '?')}"
+                    f" (alte ID {patch.get('old', '-')})")
+    if patch.get("suggestion"):
+        cmts.append(f"  # min_price-Vorschlag: Median der letzten 5 Hobby-Box-Preise "
+                    f"minus 30% = {patch['suggestion']}")
+    for c in reversed(cmts):
+        block.insert(1, c)
+    return changed
+
+
+# --------------------------------------------------------------- preis-historie
+PRICE_FILE = ROOT / "var" / "set_prices.json"
+
+
+def _price_history(setname) -> list:
+    if not setname or not PRICE_FILE.exists():
+        return []
+    try:
+        d = json.loads(PRICE_FILE.read_text(encoding="utf-8"))
+        return list(d.get(setname, []) or [])
+    except Exception:
+        return []
+
+
+def _remember_price(setname, price):
+    if not setname:
+        return
+    d = {}
+    if PRICE_FILE.exists():
+        try:
+            d = json.loads(PRICE_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            d = {}
+    lst = list(d.get(setname, []) or [])
+    if float(price) > 0:
+        lst.append(float(price))
+        d[setname] = lst[-20:]
+    PRICE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    PRICE_FILE.write_text(json.dumps(d), encoding="utf-8")
+
+
+def _price_suggestion(setname, price) -> float:
+    """Median der letzten 5 Hobby-Box-Preise des Sets minus 30 % als Vorschlag."""
+    lst = _price_history(setname)[-5:]
+    if not lst:
+        return round(float(price) * 0.7, 2) if price else 0.0
+    s = sorted(lst)
+    med = s[len(s) // 2] if len(s) % 2 else (s[len(s) // 2 - 1] + s[len(s) // 2]) / 2
+    return round(med * 0.7, 2)
+
+
 async def _available(s: AsyncSession, cfg: Settings, host: str,
                      variant_id: int, handle: str = "") -> bool:
     """Verfuegbarkeit der Variante. Ein Endpunkt: product(handle:) wenn ein
@@ -1782,20 +2123,91 @@ async def _cached_price(s: AsyncSession, cfg: Settings, host: str,
     return "", 0.0
 
 
-async def _run_drop(cfg, state, pool, notifier, solver, host, vid, url,
-                    qty, mode, card, dry, deadline):
-    """Gemeinsamer Drop-Pfad fuer --target und --resolve.
+async def _prepare_set(s, cfg, notifier, host, job, t, deadline) -> bool:
+    """Set/Resolve: Kandidaten sammeln, Kaufentscheidung, Whitelist-Plan.
+    Setzt job['vid'/'handle'/'title'/'price'/'plan'/'resolved_new']. -> bool."""
+    setname = job.get("setname", "")
+    url = job.get("url", "")
+    cands = await _resolve_set(s, cfg, host, setname, url)
+    # Set-Config ermitteln: --resolve kennt kein Set -> passendes Set aus dem
+    # aufgeloesten Titel (Setname-Tokens) bestimmen, sonst Defaults.
+    if not (t.get("set") or t.get("name")):
+        for c in cands:
+            mt = next((x for x in _load_targets_norm()
+                       if x.get("set") and _matches_set(x["set"], c.get("title", ""),
+                                                        c.get("handle", ""))), None)
+            if mt:
+                t.update(mt)
+                break
+        job["t"] = t
+    if not cands:
+        CONSOLE.print(f"[red]{'resolve' if url else 'set'} '{setname or url}': kein Treffer.[/]")
+        await notifier.send("Aufloesung fehlgeschlagen", "fail",
+                            {"Host": host, "Set": setname or url,
+                             "Grund": "keine Kandidaten"}, error=True)
+        return False
+    buys = []
+    for p in cands:
+        buy, reason, _sig = _decide(t, p)
+        LOG.info("Kaufentscheidung %s -> %s (%s)",
+                 p.get("title", ""), "kaufen" if buy else "verworfen", reason)
+        if buy:
+            buys.append(p)
+    if not buys:
+        CONSOLE.print("[yellow]Kein Kauf: alle Kandidaten verworfen.[/]")
+        await notifier.send("Kein Kauf", "fail",
+                            {"Host": host, "Set": setname or url,
+                             "Grund": "kein whitelist-treffer"}, error=True)
+        return False
+    plan, pg = _select_plan(buys, t)
+    if not plan:
+        CONSOLE.print(f"[yellow]Kein Kauf: {pg}[/]")
+        await notifier.send("Kein Kauf", "fail",
+                            {"Host": host, "Set": setname or url, "Grund": pg}, error=True)
+        return False
+    CONSOLE.print(f"[green]Kaufentscheidung[/]: {pg} -> "
+                  f"{[p.get('title', '') for p in buys]}")
+    vid = int(plan[0][0])
+    handle = plan[0][1]
+    first = next((p for p in buys if int(_variant_id(p)) == vid), buys[0])
+    job.update(vid=vid, handle=handle, title=first.get("title", ""),
+               price=_variant_price(first), plan=plan, resolved_new=True)
+    return True
+
+
+async def _poll_plan(s, cfg, host, plan) -> int | None:
+    """Plan abarbeiten (gleiche Session+Proxy): hobby zuerst (20 s Budget),
+    jumbo als Fallback (letzter Eintrag ohne Budget bis max_wait_s).
+    -> gewaehlte Varianten-ID oder None."""
+    end = time.monotonic() + float(cfg.queue.get("max_wait_s", 1800))
+    poll = max(0.2, float(cfg.queue.get("poll_s", 1.0)))
+    for vid, handle, budget in plan:
+        step_end = min(end, time.monotonic() + budget) if budget else end
+        while time.monotonic() < step_end:
+            if await _available(s, cfg, host, vid, handle):
+                return vid
+            await asyncio.sleep(poll)
+    return None
+
+
+async def _run_drop(cfg, state, pool, notifier, solver, job, deadline):
+    """Gemeinsamer Drop-Pfad (--target / --set / --resolve).
     Speed-Pfad: 90 s vor --at cf_clearance + Session + cartCreate (Cart-Link im
-    Speicher). Dann Poll auf availableForSale (1,0 s, ein Endpunkt, gleiche
-    Session + gleicher Proxy) und vollautomatischer Checkout. max_price aus dem
-    Prewarm-Cache, keine Live-Nachfrage. dry stoppt vor der Zahlung (Checkout-
-    Link als Beleg)."""
+    Speicher). Vorlauf-Validierung nur T-90 bis T-10. Poll 1,0 s auf
+    availableForSale (ein Endpunkt, gleiche Session + gleicher Proxy).
+    Vollautomatischer Checkout; pro Konto genau EINE Order. max_price/min_price
+    aus dem Prewarm-Cache, keine Live-Nachfrage. dry stoppt vor der Zahlung."""
     from utilities.quality import Quality
-    maxp = float((next((t for t in load_targets() if host in (t.get("hosts") or [])),
-                        None) or {}).get("max_price") or 0)
-    profs = [p for p in load_profiles(MODULE) if p.enabled]
-    prof = profs[0] if profs else None
+    t = job.get("t") or {}
+    host = job["host"]
+    mode = job.get("mode", "cart")
+    card = job.get("card", False)
+    dry = job.get("dry", True)
+    qty = int(job.get("qty") or 1)
+    minp = float(t.get("min_price") or 0)
+    maxp = float(t.get("max_price") or 0)
     q = Quality(MODULE)
+    prof = job.get("prof")
 
     prewarm = 90.0
     if deadline is not None:
@@ -1808,71 +2220,151 @@ async def _run_drop(cfg, state, pool, notifier, solver, host, vid, url,
 
     proxy = await pool.acquire()
     s = session(cfg, proxy)
-    handle, title, price, variant = "", "", 0.0, None
     try:
         # Prewarm: frische cf_clearance ueber den Task-Proxy (IP-gebunden).
-        # Ohne Proxy ueberspringen (Storefront laeuft ohne cf; Browser-Cf nur
-        # fuer die gebundene Proxy-IP noetig).
         if proxy:
             try:
                 await asyncio.wait_for(cf_refresh(host, proxy=proxy), timeout=60)
             except Exception as exc:
                 LOG.debug("prewarm cf: %s", exc)
-        if url:
-            prod = await resolve_product(s, cfg, host, url)
-            if not prod:
-                CONSOLE.print("[red]resolve: kein Produkt-Handle aufloesbar.[/]")
-                return
-            variant = _pick_variant(prod)
-            handle, title = prod.get("handle", ""), prod.get("title", "")
-            if not variant:
-                CONSOLE.print("[red]resolve: Produkt ohne Varianten.[/]")
-                return
-            vid = variant["id"]
-            price = float(variant.get("price") or 0)
-            CONSOLE.print(f"[green]resolve ok[/] {title} ({handle}) "
-                          f"Variante {vid} Preis {price}")
-        else:
-            handle = next((t.get("handle", "") for t in load_targets()
-                           if host in (t.get("hosts") or []) and t.get("handle")), "")
+
+        # ---- Prewarm: Ziel aufloesen / ID bestimmen ----
+        vid, handle, title, price = 0, "", "", 0.0
+        if job.get("fixed_vid"):
+            # --target Varianten-ID: kein Aufloesen, direkt in den Poll
+            vid = int(job["fixed_vid"])
+            handle = job.get("fixed_handle", "")
             title, price = await _cached_price(s, cfg, host, vid)
-        if maxp and price and price > maxp:
-            CONSOLE.print(f"[red]Preis {price} > max_price {maxp}, Abbruch.[/]")
+            CONSOLE.print(f"[green]target[/] Variante {vid} {title or ''} Preis {price}")
+        elif job.get("fixed_handle"):
+            prod = await _storefront_product(s, cfg, host, job["fixed_handle"])
+            if not prod:
+                CONSOLE.print("[red]target: Handle nicht aufloesbar.[/]")
+                return
+            v = _pick_variant(prod)
+            if not v:
+                CONSOLE.print("[red]target: Produkt ohne Varianten.[/]")
+                return
+            vid = int(v["id"])
+            handle = prod.get("handle", "")
+            title = prod.get("title", "")
+            price = float(v.get("price") or 0)
+            CONSOLE.print(f"[green]target[/] {title} ({handle}) Variante {vid} Preis {price}")
+        elif job.get("needs_resolve") or job.get("stale"):
+            old_vid = vid or job.get("vid")
+            if not await _prepare_set(s, cfg, notifier, host, job, t, deadline):
+                return
+            vid, handle, title, price = (job["vid"], job["handle"],
+                                         job["title"], job["price"])
+            if job.get("resolved_new") and (t.get("set") or t.get("name")):
+                ts = time.strftime("%Y-%m-%d %H:%M:%S")
+                sugg = _price_suggestion(t.get("set") or t.get("name"), price)
+                patched = _write_targets(
+                    {"variant_id": vid, "handle": handle, "ts": ts,
+                     "source": "resolve", "old": str(old_vid or "-"),
+                     "suggestion": sugg},
+                    t.get("set") or t.get("name"))
+                if patched:
+                    CONSOLE.print(f"[green]targets.yaml aktualisiert: "
+                                  f"{handle} / Variante {vid}[/]")
+                _remember_price(t.get("set") or t.get("name"), price)
+                await notifier.send("ID veraltet, neu aufgeloest", "info",
+                                    {"Titel": title, "Host": host,
+                                     "Set": t.get("set", ""), "Variante": vid})
+        else:
+            # bekannte ID + Handle aus targets.yaml (Schnellweg)
+            vid = int(job.get("vid") or 0)
+            handle = job.get("handle", "")
+            title, price = await _cached_price(s, cfg, host, vid)
+
+        if not vid:
+            CONSOLE.print("[red]Drop: keine Varianten-ID.[/]")
             return
-        # cartCreate vorab -> Cart-Link im Speicher (Speed-Pfad)
-        cart_link = None
-        try:
-            cart_link = await _build_cart(s, cfg, host, vid, qty)
-        except Exception:
-            cart_link = None
-        if cart_link:
-            CONSOLE.print("[bold]Cart bereit[/] (im Speicher)")
-            await notifier.send("Cart bereit", "cart",
-                                {"Host": host, "Variant": vid, "Link": cart_link})
+
+        # ---- Vorlauf-Validierung: nur T-90 bis T-10 (nie in den letzten 10 s) ----
+        if deadline is not None and not dry:
+            t_until = deadline - time.monotonic()
+            if 10.0 <= t_until <= 90.0 and handle:
+                v = await _validate_id(s, cfg, host, vid, handle)
+                if v != "ok":
+                    CONSOLE.print(f"[yellow]ID {vid} {v} - Neuaufloesung.[/]")
+                    old_vid = vid
+                    if not await _prepare_set(s, cfg, notifier, host, job, t, deadline):
+                        return
+                    vid, handle, title, price = (job["vid"], job["handle"],
+                                                 job["title"], job["price"])
+                    if job.get("resolved_new") and (t.get("set") or t.get("name")):
+                        ts = time.strftime("%Y-%m-%d %H:%M:%S")
+                        _write_targets(
+                            {"variant_id": vid, "handle": handle, "ts": ts,
+                             "source": "validierung", "old": str(old_vid or "-")},
+                            t.get("set") or t.get("name"))
+                        await notifier.send("ID veraltet, neu aufgeloest", "info",
+                                            {"Titel": title, "Host": host,
+                                             "Set": t.get("set", ""), "Variante": vid})
+            else:
+                LOG.info("validierung nur bis T-10 (jetzt %.0fs vor --at), uebersprungen",
+                         t_until)
+
+        # Preisband aus Prewarm-Cache
+        if minp and price and price < minp:
+            CONSOLE.print(f"[red]unter min_price: {title} {price}[/]")
+            await notifier.send("Preis verworfen", "fail",
+                                {"Grund": f"unter min_price: {title} {price}",
+                                 "Host": host}, error=True)
+            return
+        if maxp and price and price > maxp:
+            CONSOLE.print(f"[red]ueber max_price: {title} {price}[/]")
+            await notifier.send("Preis verworfen", "fail",
+                                {"Grund": f"ueber max_price: {title} {price}",
+                                 "Host": host}, error=True)
+            return
+
+        plan = job.get("plan") or [(vid, handle, 0.0)]
+        # cartCreate fuer alle Plan-Varianten vorab (Speed-Pfad)
+        carts: dict[int, str] = {}
+        for pv, _ph, _b in plan:
+            cl = await _build_cart(s, cfg, host, pv, qty)
+            if cl:
+                carts[pv] = cl
+        if not carts:
+            CONSOLE.print("[red]Drop: kein Cart-Link (cartCreate leer).[/]")
+            await notifier.send("Kein Cart", "fail",
+                                {"Host": host, "Grund": "cartCreate leer"}, error=True)
+            return
+        CONSOLE.print(f"[bold]Cart bereit[/] ({len(carts)} im Speicher)")
+
         # auf --at warten (monotone Uhr, Sekundengenau)
         if deadline is not None:
             CONSOLE.print("[bold]Scheduler[/]: warte bis --at.")
             await _wait_until(deadline)
+
         if dry:
-            link = cart_link or await _build_cart(s, cfg, host, vid, qty)
+            link = carts.get(vid) or next(iter(carts.values()))
             if not link:
                 CONSOLE.print("[red]dry: kein Checkout-Link.[/]")
             else:
                 CONSOLE.print(f"[bold green]CHECKOUT[/] {link}")
             return
-        # Live: Poll auf availableForSale (1,0 s), dann vollautomatischer Checkout
-        if not await _wait_available(s, cfg, host, vid, handle):
-            CONSOLE.print("[red]Drop: Variante nicht verfuegbar (Zeitueberschreitung).[/]")
+
+        # Live: Plan abarbeiten (hobby zuerst, jumbo Fallback nach 20 s)
+        chosen = await _poll_plan(s, cfg, host, plan)
+        if chosen is None:
+            CONSOLE.print("[red]Drop: keine Variante verfuegbar (Zeitueberschreitung).[/]")
             await notifier.send("Drop fehlgeschlagen", "fail",
-                                {"Host": host, "Variante": vid,
+                                {"Host": host, "Set": t.get("set", ""),
                                  "Grund": "nicht verfuegbar"}, error=True)
             return
-        link = cart_link or await _build_cart(s, cfg, host, vid, qty)
+        link = carts.get(chosen) or await _build_cart(s, cfg, host, chosen, qty)
         if not link:
             CONSOLE.print("[red]Drop: kein Cart-Link.[/]")
             return
         if not prof:
             CONSOLE.print("[red]Drop: kein Profil vorhanden.[/]")
+            return
+        # Pro Konto genau EINE Order -> danach Task-Ende fuer das Konto
+        if await state.orders(prof.id) > 0 and job.get("one_per_account"):
+            CONSOLE.print(f"[yellow]{prof.id} hat bereits eine Order - Task-Ende.[/]")
             return
         http = HttpCheckout(cfg, state, pool, solver, notifier)
         res = await http.run_prebuilt(s, host, link, prof, dry=False, card=card)
@@ -1880,15 +2372,17 @@ async def _run_drop(cfg, state, pool, notifier, solver, host, vid, url,
         q.increment("attempts")
         if res.get("order"):
             q.success()
+            await state.add_order(prof.id, host, res["order"])
             await notifier.send("ERFOLG", "ok",
-                                {"Produkt": title or "-", "Preis": price,
-                                 "Order": res["order"], "Konto": prof.email,
-                                 "Zeit": ts, "Link": res.get("url", link)})
+                                {"Produkt": title or "-", "Variante": chosen,
+                                 "Preis": price, "Order": res["order"],
+                                 "Konto": prof.email, "Zeit": ts,
+                                 "Link": res.get("url", link)})
             CONSOLE.print(f"[bold green]ERFOLG[/] Order {res['order']}")
         else:
             q.banned(res.get("note", ""))
             await notifier.send("Checkout-Fehler", "fail",
-                                {"Host": host, "Variante": vid,
+                                {"Host": host, "Variante": chosen,
                                  "Ursache": res.get("note", "?"),
                                  "Cart-Link": link}, error=True)
             CONSOLE.print(f"[red]Checkout-Fehler[/] {res.get('note')}")
@@ -1898,8 +2392,48 @@ async def _run_drop(cfg, state, pool, notifier, solver, host, vid, url,
 
 
 async def cmd_drop(cfg, state, pool, notifier, solver, host, vid, tasks, qty, mode,
-                   card=False, at="", target="", dry=True, resolve=""):
-    # ---- Zielaufloesung (Aufgabe 1) ----
+                   card=False, at="", targets=None, setname="", resolve="", dry=True):
+    """Zielwege (Aufgabe 1): --target (Handle/Variant-ID/Name, mehrfach), sonst
+    --set <setname> oder --resolve <set-landing-url> als Aufloesung. Ohne beides
+    keine Ausfuehrung (kein Blindlauf)."""
+    targets = list(targets or [])
+    jobs: list[dict] = []
+    tn = _load_targets_norm()
+    for tg in targets:
+        tg = str(tg).strip()
+        if not tg:
+            continue
+        t = next((x for x in tn if str(x.get("name", "")).lower() == tg.lower()), None)
+        if t:
+            jobs.append({
+                "t": t, "host": host or (t.get("hosts") or [cfg.hosts[0]])[0],
+                "vid": int(t["variant_id"]) if t.get("variant_id") else 0,
+                "handle": t.get("handle", ""), "setname": t.get("set", ""),
+                "mode": mode or t.get("mode", "cart"),
+                "qty": qty or int(t.get("qty") or 1),
+                "card": card, "dry": dry, "needs_resolve": False, "fixed_vid": 0})
+        elif tg.isdigit():
+            jobs.append({
+                "t": {}, "host": host or (cfg.hosts[0] if cfg.hosts else ""),
+                "fixed_vid": int(tg), "fixed_handle": "", "mode": mode,
+                "qty": qty or 1, "card": card, "dry": dry, "needs_resolve": False})
+        else:
+            jobs.append({
+                "t": {}, "host": host or (cfg.hosts[0] if cfg.hosts else ""),
+                "fixed_vid": 0, "fixed_handle": tg, "mode": mode,
+                "qty": qty or 1, "card": card, "dry": dry, "needs_resolve": False})
+    if setname:
+        t = next((x for x in tn
+                  if str(x.get("set") or x.get("name", "")).lower() == setname.lower()), None)
+        if not t:
+            CONSOLE.print(f"[red]set '{setname}' nicht in targets.yaml.[/]")
+            return
+        host = host or (t.get("hosts") or [cfg.hosts[0]])[0]
+        jobs.append({
+            "t": t, "host": host, "setname": t.get("set", setname), "url": "",
+            "mode": mode or t.get("mode", "cart"),
+            "qty": qty or int(t.get("qty") or 1),
+            "card": card, "dry": dry, "needs_resolve": True})
     if resolve:
         if MODULE != "topps":
             CONSOLE.print("[red]--resolve ist nur im Modul topps verfuegbar.[/]")
@@ -1909,33 +2443,27 @@ async def cmd_drop(cfg, state, pool, notifier, solver, host, vid, tasks, qty, mo
         if r_host.startswith("www."):
             r_host = r_host[4:]
         host = r_host or host or (cfg.hosts[0] if cfg.hosts else "")
-        if not host:
-            CONSOLE.print("[red]resolve: kein Host in URL und keine cfg.hosts.[/]")
-            return
-    elif target:
-        t = next((x for x in load_targets()
-                  if x.get("name", "").lower() == target.lower()), None)
-        if not t:
-            CONSOLE.print(f"[red]target '{target}' nicht in config/targets.yaml.[/]")
-            return
-        host = host or (t.get("hosts") or [cfg.hosts[0]])[0]
-        vid = vid or t.get("variant") or t.get("handle")
-        qty = qty or t.get("quantity", 1)
-        tasks = tasks or t.get("tasks", 10)
-        mode = mode if mode else t.get("mode", "cart")
-    if not vid and not resolve:
-        CONSOLE.print("[red]--target oder --resolve erforderlich - kein Blindlauf.[/]")
+        t = {}
+        jobs.append({
+            "t": t, "host": host, "setname": "", "url": resolve,
+            "mode": mode, "qty": qty or 1, "card": card, "dry": dry,
+            "needs_resolve": True})
+    if not jobs:
+        CONSOLE.print("[red]--target oder --resolve/--set erforderlich - kein Blindlauf.[/]")
         return
     deadline = _at_deadline(at) if at else None
     if at and deadline is None:
         CONSOLE.print(f"[red]--at '{at}' ungueltig (HH:MM oder HH:MM:SS).[/]")
         return
-    # Keine 1000er-Proxy-Vorpruefung im Drop (Speed-Pfad): Proxy-Gesundheit
-    # regelt acquire()/mark_dead() zur Laufzeit. Vollprecheck bleibt ueber watch.
-    CONSOLE.print(f"[bold]drop[/] {host} {'resolve' if resolve else 'Variante ' + str(vid)} "
-                  f"x{qty} ({tasks} Tasks, Modus {mode}{', dry' if dry else ''})")
-    await _run_drop(cfg, state, pool, notifier, solver, host, vid, resolve,
-                    qty, mode, card, dry, deadline)
+    # Pro Konto genau EINE Order: jedem Job ein anderes Profil zuordnen
+    profs = [p for p in load_profiles(MODULE) if p.enabled]
+    for i, job in enumerate(jobs):
+        job["one_per_account"] = True
+        job["prof"] = profs[i % len(profs)] if profs else None
+        CONSOLE.print(f"[bold]drop[/] {job['host']} "
+                      f"{'resolve' if job.get('needs_resolve') else 'Variante ' + str(job.get('fixed_vid') or job.get('vid'))} "
+                      f"x{job['qty']} ({tasks} Tasks, Modus {job['mode']}{', dry' if dry else ''})")
+        await _run_drop(cfg, state, pool, notifier, solver, job, deadline)
 
 
 # --------------------------------------------------------------- cli generisch
@@ -1963,9 +2491,11 @@ def argv_parser(prog: str = "baki", module: str | None = None):
     d.add_argument("--card-http", action="store_true")
     d.add_argument("--dry", action="store_true", help="Stopp vor Zahlung")
     d.add_argument("--at", default="", help="HH:MM oder HH:MM:SS Wartezeit (Scheduler)")
-    d.add_argument("--target", default="", help="Name aus config/targets.yaml")
+    d.add_argument("--target", action="append", default=[],
+                   help="Handle/Variant-ID/Name aus targets.yaml (mehrfach)")
+    d.add_argument("--set", default="", help="Setname -> Aufloesung + Kaufentscheidung")
     d.add_argument("--resolve", default="",
-                   help="Landing-URL zur Produkt-Aufloesung (nur Modul topps, nur mit --at sinnvoll)")
+                   help="Set-Landing-URL zur Aufloesung (nur Modul topps, nur mit --at sinnvoll)")
     return ap
 
 
@@ -2026,8 +2556,8 @@ def main(argv=None):
     elif a.cmd == "drop":
         dry = not a.card_http and not getattr(a, "dry", False) is False
         asyncio.run(cmd_drop(cfg, state, pool, notifier, solver, a.host, a.variant,
-                             a.tasks, a.qty, a.mode, a.card_http, a.at, a.target, dry,
-                             a.resolve))
+                             a.tasks, a.qty, a.mode, a.card_http, a.at, a.target,
+                             a.set, a.resolve, dry))
 
 
 class ShopifyModule(BaseModule):
@@ -2062,8 +2592,10 @@ class ShopifyModule(BaseModule):
         notifier = Notifier(ENV.get("DISCORD_WEBHOOK", ""),
                             ENV.get("DISCORD_WEBHOOK_ERRORS", ""))
         solver = Solver(cfg)
+        targets = [variant] if variant else []
         return cmd_drop(cfg, state, pool, notifier, solver, host, variant,
-                        tasks, qty, mode, False, dry=True)
+                        tasks, qty, mode, card=False, at="", targets=targets,
+                        setname="", resolve="", dry=True)
 
     def call(self, argv) -> int:
         try:
