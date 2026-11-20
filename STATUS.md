@@ -279,3 +279,20 @@ Fehler / offen:
 - Keine Profilzeilen, weil `config\profiles.yaml` nicht existiert.
 - `warm()` und `HttpCheckout` rufen weiterhin `/products.json?limit=1`, `/cart/add.js` und `/checkout` auf dem Frontend-Host auf. Nicht angefasst (gehoert zu Schritt 5), wird dort auf de.topps.com voraussichtlich nicht funktionieren, weil das Frontend kein Shopify-Theme ist. Schritt 5 nennt ausserdem `/products.json?limit=20` als Quelle der Variant-ID - die gibt es nicht mehr, Variant-IDs kommen jetzt aus der Storefront-API.
 - Die Startseite bindet `consumer.fanfare.io` ein (Warteraum-/Drop-Dienst). Nicht untersucht.
+
+## Schritt 8 - headers() auf Minimum (2026-11-20)
+Ergebnis: Code-Aenderung erledigt, Test liefert weiter 403.
+- `headers()` in toppsfarm.py setzt nur noch `accept` und `accept-language`. Entfernt: `user-agent`, `sec-ch-ua`, `sec-ch-ua-mobile`, `sec-ch-ua-platform`, `sec-fetch-dest`, `sec-fetch-mode`, `sec-fetch-site`, `referer`, `x-requested-with`. Diese Header kommen jetzt vom impersonate (`cfg.impersonate`, Standard `chrome`).
+- Aufrufer, die eigene Header ergaenzen (HttpCheckout: `content-type`, `x-csrf-token`, `origin`, `referer`), sind unveraendert.
+- `py_compile toppsfarm.py` ohne Fehler.
+- Die Exe wurde NICHT neu gebaut; `dist\toppsfarm.exe` enthaelt noch die alten Header.
+
+Test: eine Anfrage aus dem Quelltext (`session(cfg)` + `headers(cfg, host, True)`), ohne Proxy, auf `https://de.topps.com/products.json` ohne Query:
+```
+headers: {'accept': 'application/json', 'accept-language': 'de-DE,de;q=0.9,en;q=0.8'}
+status: 403
+content-type: text/html; charset=UTF-8
+server: cloudflare
+body[:300]: '<!DOCTYPE html>\n<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->\n<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->\n<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->\n<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!'
+```
+Fehler: Statuscode 403, Body ist die Cloudflare-Blockseite (HTML), kein products-JSON. Gleiches Ergebnis wie Matrix 1 aus Schritt 4: die Header sind nicht die Ursache des 403.

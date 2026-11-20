@@ -348,22 +348,13 @@ class State:
 
 # --------------------------------------------------------------- http
 def headers(cfg: Settings, host: str, json_mode: bool = False) -> dict:
-    h = {
+    # Minimum: nur accept und accept-language. user-agent, sec-ch-ua, sec-fetch-*
+    # usw. setzt das impersonate von curl_cffi selbst (passend zum Fingerprint).
+    return {
         "accept": "application/json" if json_mode else
                   "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "accept-language": f"{cfg.locale},{cfg.locale.split('-')[0]};q=0.9,en;q=0.8",
-        "user-agent": UA,
-        "sec-ch-ua": '"Chromium";v="131", "Not_A Brand";v="24", "Google Chrome";v="131"',
-        "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-platform": '"Windows"',
-        "sec-fetch-dest": "empty" if json_mode else "document",
-        "sec-fetch-mode": "cors" if json_mode else "navigate",
-        "sec-fetch-site": "same-origin",
-        "referer": f"https://{host}/",
     }
-    if json_mode:
-        h["x-requested-with"] = "XMLHttpRequest"
-    return h
 
 
 def session(cfg: Settings, proxy: str | None = None) -> AsyncSession:

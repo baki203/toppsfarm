@@ -2,7 +2,7 @@
 - [x] 5 | cart-Flow (haengt an 4)
 - [x] 6 | hCaptcha (Code geprueft)
 - [x] 7 | release.zip (haengt an 4)
-- [ ] 8 | headers() auf Minimum reduzieren: nur accept und accept-language setzen, alle anderen Header entfernen und dem impersonate ueberlassen. Test gegen https://de.topps.com/products.json ohne Query, Statuscode und Body-Anfang nach STATUS.md.
+- [x] 8 | headers() auf Minimum reduzieren: nur accept und accept-language setzen, alle anderen Header entfernen und dem impersonate ueberlassen. Test gegen https://de.topps.com/products.json ohne Query, Statuscode und Body-Anfang nach STATUS.md.
 - [ ] 9 | impersonate durchprobieren: chrome, chrome131, chrome124, safari17_0, firefox133. Je Variante Statuscode nach STATUS.md, nicht installierte ueberspringen.
 - [ ] 10 | HTTP/1.1 erzwingen statt h2, gegen de.topps.com/products.json, Statuscode nach STATUS.md.
 - [ ] 11 | Vergleich mit und ohne ?limit=250 auf products.json, Statuscodes nach STATUS.md.
