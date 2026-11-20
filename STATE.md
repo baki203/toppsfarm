@@ -8,9 +8,9 @@ Stand: 2026-11-20, Aufgaben 1-7 aus AGENTS.md.
 - 3: cart-Flow ok. de.topps.com ohne /cart/add.js (Next.js); neu `HttpCheckout._storefront_cart_link` (Storefront-cartCreate) -> echter checkoutUrl. Drop-Test 1 Task (Cameron Boozer, variant 51178597613808): Task 'ok' mit checkout-link. Orchestrator sendet URL als CHECKOUT-Nachricht an Discord.
 - 4: baki.py Menue hat 14 Plaetze, Module 1-6 verdrahtet (Topps/Nike/Amazon/Riftbound/Pokemon/Toolbox), 7-14 Platzhalter ("-" + "noch nicht belegt"). Alle 6 Fabriken importieren, run() vorhanden. Menue startet (Banner ok).
 - 5: settings.json mit Defaults liegt vor (gultiges JSON, 17 Keys, spiegelt settings.yaml). Neu in baki.py: sys.excepthook schreibt Traceback nach crashlog.log. Test: Crash im baki-Kontext schreibt Datei.
+- 6: release.zip neu gebaut (57 MB). BakiAIO.exe mit allen Fixes (Banner+Menue startet, Exit 0), START.bat, README.md, settings.json, config/ (settings.yaml, targets.yaml, proxy.txt), data/-Pools, leere accounts/-proxies/Address-Toolbox mit .gitkeep.
 
 ## Offen
-- 6: release.zip bauen.
 - 7: README auf Baki AIO umschreiben.
 - 6: release.zip bauen.
 - 7: README auf Baki AIO umschreiben.
@@ -20,4 +20,4 @@ Stand: 2026-11-20, Aufgaben 1-7 aus AGENTS.md.
 - Discord-Link erst wenn DISCORD_WEBHOOK in config/keys.env gesetzt (fehlt, .gitignored).
 
 ## Naechster Schritt
-- 6: release.zip bauen.
+- 7: README auf Baki AIO umschreiben.
