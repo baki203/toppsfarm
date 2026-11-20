@@ -17,6 +17,10 @@ concurrency_http: 60
 concurrency_browser: 8
 poll_interval_s: 2.5
 poll_jitter_s: 0.9
+# Monitor-Quellen in Reihenfolge: sitemap, storefront, products_json
+monitor_sources:
+  - sitemap
+  - storefront
 timeout_s: 25
 max_retries: 3
 retry_backoff_s: 1.5

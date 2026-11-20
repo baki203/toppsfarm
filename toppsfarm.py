@@ -56,6 +56,9 @@ class Settings:
     concurrency_browser: int = 8
     poll_interval_s: float = 2.5
     poll_jitter_s: float = 0.9
+    # Quellen des Monitors in dieser Reihenfolge; die naechste wird nur benutzt,
+    # wenn die davor nichts liefert. Moeglich: sitemap, storefront, products_json
+    monitor_sources: list = field(default_factory=lambda: ["sitemap", "storefront"])
     timeout_s: int = 25
     max_retries: int = 3
     retry_backoff_s: float = 1.5
@@ -386,6 +389,11 @@ SF_QUERY = ("query($n:Int!,$c:String){products(first:$n,after:$c,sortKey:CREATED
             "variants(first:20){edges{node{id availableForSale price{amount}}}}}}}}")
 _SF: dict = {}        # host -> (storeDomain, storefrontAccessToken)
 _SM_SEEN: dict = {}   # host -> bekannte Handles der letzten Teil-Sitemap
+_SM_FAIL: dict = {}   # (host, handle) -> Fehlversuche beim Aufloesen der Produktseite
+_SM_PAUSE: dict = {}  # host -> Zeitpunkt, bis zu dem die Sitemap nach 429 ruht
+SM_PAUSE_S = 60       # Pause nach 429 auf der Sitemap
+SM_MAX_NEW = 20      # hoechstens so viele neue Handles je Durchlauf aufloesen
+SM_MAX_FAIL = 5       # danach gilt ein Handle als gesehen
 
 
 def base_headers(cfg: Settings, json_mode: bool = False) -> dict:
@@ -481,6 +489,47 @@ async def pdp_product(s: AsyncSession, cfg: Settings, host: str, handle: str):
     m = re.search(r"<title>(.*?)</title>", t, re.S)
     return {"id": zlib.crc32(f"{host}/{raw}".encode()), "handle": raw,
             "title": m.group(1).strip() if m else raw, "variants": vs}
+
+
+async def sitemap_new(s: AsyncSession, cfg: Settings, host: str):
+    """Sitemap-Weg: -> (status, neue Produkte im products.json-Format).
+    Der erste Durchlauf je Host merkt sich nur die vorhandenen Handles."""
+    if time.time() < _SM_PAUSE.get(host, 0):
+        return 429, []
+    st, handles = await sitemap_handles(s, cfg, host)
+    if st == 429:   # Rate-Limit des Shops: Sitemap fuer diesen Host ruhen lassen
+        _SM_PAUSE[host] = time.time() + SM_PAUSE_S
+        LOG.warning("%s: Sitemap 429, Pause %ss", host, SM_PAUSE_S)
+    if st != 200 or not handles:
+        return st, []
+    seen = _SM_SEEN.get(host)
+    if seen is None:
+        _SM_SEEN[host] = set(handles)
+        return 200, []
+    out = []
+    for h in [h for h in handles if h not in seen][-SM_MAX_NEW:]:
+        p = await pdp_product(s, cfg, host, h)
+        if p:
+            seen.add(h)
+            out.append(p)
+            continue
+        n = _SM_FAIL[(host, h)] = _SM_FAIL.get((host, h), 0) + 1
+        if n >= SM_MAX_FAIL:
+            seen.add(h)
+            LOG.warning("%s: Handle %s nicht aufloesbar, uebersprungen", host, h)
+    return 200, out
+
+
+async def products_json(s: AsyncSession, cfg: Settings, host: str, limit: int = 250):
+    """Optionaler Zweitweg (klassisches Shopify-Theme): -> (status, products)."""
+    r = await s.get(f"https://{host}/products.json?limit={limit}",
+                    headers=headers(cfg, host, True))
+    if r.status_code != 200:
+        return r.status_code, []
+    try:
+        return 200, r.json().get("products", [])
+    except Exception:
+        return 200, []
 
 
 # --------------------------------------------------------------- captcha
@@ -806,28 +855,31 @@ class Monitor:
         s = session(self.cfg, proxy)
         changed = False
         try:
-            # 1. Storefront-API (zwei Seiten a 250, neueste zuerst)
-            status, cursor = 0, None
-            for _ in (1, 2):
-                status, items, cursor = await storefront_products(s, self.cfg, host, 250, cursor)
-                if status != 200 or not items:
+            for src in self.cfg.monitor_sources:
+                if src == "sitemap":
+                    # Produkt-Sitemap diffen, Variant-IDs von der Produktseite
+                    status, items = await sitemap_new(s, self.cfg, host)
+                    if items:
+                        changed |= await self._feed(host, items)
+                elif src == "storefront":
+                    # Storefront-API (zwei Seiten a 250, neueste zuerst)
+                    status, cursor = 0, None
+                    for _ in (1, 2):
+                        status, items, cursor = await storefront_products(
+                            s, self.cfg, host, 250, cursor)
+                        if status != 200 or not items:
+                            break
+                        changed |= await self._feed(host, items)
+                        if not cursor:
+                            break
+                elif src == "products_json":
+                    status, items = await products_json(s, self.cfg, host)
+                    if items:
+                        changed |= await self._feed(host, items)
+                else:
+                    continue
+                if status == 200:
                     break
-                changed |= await self._feed(host, items)
-                if not cursor:
-                    break
-            # 2. Ersatz: Produkt-Sitemap diffen, Variant-IDs von der Produktseite
-            if status != 200:
-                st, handles = await sitemap_handles(s, self.cfg, host)
-                if st == 200 and handles:
-                    seen = _SM_SEEN.get(host)
-                    if seen is None:
-                        _SM_SEEN[host] = set(handles)
-                    else:
-                        for h in [h for h in handles if h not in seen]:
-                            p = await pdp_product(s, self.cfg, host, h)
-                            if p:
-                                seen.add(h)
-                                changed |= await self._feed(host, [p])
         except Exception as exc:
             LOG.debug("%s: %s", host, exc)
         finally:
@@ -933,18 +985,27 @@ async def cmd_selftest(cfg, state, pool, notifier):
     for host in cfg.hosts:
         s = session(cfg, await pool.acquire())
         try:
-            # Storefront-API zuerst, sonst Produkt-Sitemap; /products.json ist gesperrt
-            status, items, _ = await storefront_products(s, cfg, host, 1)
-            src = "storefront products-JSON"
-            ok = status == 200 and bool(items)
-            if not ok:
-                st, handles = await sitemap_handles(s, cfg, host)
-                if st == 200 and handles:
-                    status, src, ok = st, f"sitemap, {len(handles)} handles", True
-                elif not status:
-                    status = st
+            # dieselben Quellen und dieselbe Reihenfolge wie der Monitor
+            status, src, ok, failed = 0, "", False, []
+            for name in cfg.monitor_sources:
+                if name == "sitemap":
+                    st, handles = await sitemap_handles(s, cfg, host)
+                    ok, src = st == 200 and bool(handles), f"sitemap, {len(handles)} handles"
+                elif name == "storefront":
+                    st, items, _ = await storefront_products(s, cfg, host, 1)
+                    ok, src = st == 200 and bool(items), "storefront products-JSON"
+                elif name == "products_json":
+                    st, items = await products_json(s, cfg, host, 1)
+                    ok, src = st == 200 and bool(items), "products.json"
+                else:
+                    continue
+                status = st or status
+                if ok:
+                    break
+                failed.append(f"{name} {st}")
             CONSOLE.print(f"[{'green' if ok else 'red'}]{'OK ' if ok else '---'} {host} "
-                          f"({status}){' ' + src if ok else ''}[/]")
+                          f"({status}){' ' + src if ok else ''}"
+                          f"{' | vorher: ' + ', '.join(failed) if ok and failed else ''}[/]")
         except Exception as exc:
             CONSOLE.print(f"[red]--- {host} ({type(exc).__name__})[/]")
         finally:

@@ -367,3 +367,71 @@ Fehler:
 - Kein 403 auf diesen drei Pfaden. Gleiches Ergebnis wie Matrix 5 aus Schritt 4.
 
 Folge fuer Schritt 13: die dort genannten Quellen (`sitemap_products_1.xml`, `/products/<handle>.js`) gibt es nicht. Die Produkt-Sitemap liegt unter `/products/sitemap.xml` -> `/products/sitemap/<n>.xml`, Variant-IDs stehen im HTML von `/products/<handle>` (siehe Matrix 5/6).
+
+## Schritt 13 - Monitor auf Sitemap umgebaut (2026-11-20)
+Ergebnis: erledigt, mit Abweichungen bei den Quellen und einem offenen Punkt (429 auf der Sitemap).
+- Vorbedingung "falls Sitemap geht" trifft zu, aber nicht fuer die im Auftrag genannten Pfade (Schritt 12): `/sitemap_products_1.xml` ist 404, `/products/<handle>.js` liefert HTML statt JSON. Umgesetzt mit den tatsaechlichen Quellen: Handles aus `/products/sitemap.xml` -> letzte Teil-Sitemap `/products/sitemap/<n>.xml`, Variant-IDs aus dem HTML von `/products/<handle>`.
+- Aenderungen in toppsfarm.py:
+  - Neue Einstellung `monitor_sources` (Standard und in `config\settings.yaml`: `sitemap`, `storefront`). Die Quellen werden in dieser Reihenfolge benutzt, die naechste nur, wenn die davor keinen Status 200 liefert.
+  - `Monitor._poll()`: Sitemap ist jetzt der erste Weg (vorher Storefront-API zuerst, Sitemap nur Ersatz).
+  - `sitemap_new()`: erster Durchlauf je Host merkt sich die Handles, danach werden neue Handles gedifft und ueber die Produktseite aufgeloest. Hoechstens 20 neue Handles je Durchlauf; ein Handle, das sich 5-mal nicht aufloesen laesst, wird uebersprungen (Warnung im Log).
+  - `products_json()`: `/products.json` als optionaler Zweitweg. Nicht im Standard, weil auf de.topps.com 403; aktivierbar ueber `monitor_sources: [sitemap, products_json]`.
+  - Nach 429 auf der Sitemap ruht der Sitemap-Weg fuer diesen Host 60 s (in der Zeit greift die naechste Quelle).
+  - `cmd_selftest()`: prueft dieselben Quellen in derselben Reihenfolge und zeigt, welche Quelle vorher gescheitert ist.
+- `py_compile toppsfarm.py` ohne Fehler. Die Exe wurde NICHT neu gebaut; `dist\toppsfarm.exe` hat noch den alten Monitor (Storefront zuerst).
+
+Test 1: `Monitor._poll()` aus dem Quelltext gegen de.topps.com, ohne Proxy, State/Notifier durch Attrappen ersetzt. In Poll 3 wurde das letzte Handle aus dem Gemerkten entfernt, um ein neues Produkt zu simulieren (ein echtes neues Produkt ist im Testzeitraum nicht erschienen). Ausgabe woertlich (`®` zeigt die Konsole als `�`):
+```
+monitor_sources: ['sitemap', 'storefront']
+poll 1 | changed=False | seen=15 | on_new=0 | storefront-calls=0 | 0.7s
+poll 2 | changed=False | seen=15 | on_new=0 | storefront-calls=0 | 0.5s
+  notify: NEU Darius Acuff Jr. - 2026-27 NBA Topps NOW� - Card 96 {'Host': 'de.topps.com', 'Preis': '9.99', 'Variant': 51171485516016, 'Link': 'https://de.topps.com/products/darius-acuff-jr-2026-27-nba-topps-now-r-card-96'}
+  notify: NEU Darius Acuff Jr. - 2026-27 NBA Topps NOW� - Card 96 {'Host': 'de.topps.com', 'Preis': '46.99', 'Variant': 51171485548784, 'Link': 'https://de.topps.com/products/darius-acuff-jr-2026-27-nba-topps-now-r-card-96'}
+  notify: NEU Darius Acuff Jr. - 2026-27 NBA Topps NOW� - Card 96 {'Host': 'de.topps.com', 'Preis': '81.99', 'Variant': 51171485581552, 'Link': 'https://de.topps.com/products/darius-acuff-jr-2026-27-nba-topps-now-r-card-96'}
+  notify: NEU Darius Acuff Jr. - 2026-27 NBA Topps NOW� - Card 96 {'Host': 'de.topps.com', 'Preis': '150.99', 'Variant': 51171485614320, 'Link': 'https://de.topps.com/products/darius-acuff-jr-2026-27-nba-topps-now-r-card-96'}
+poll 3 (Handle 'darius-acuff-jr-2026-27-nba-topps-now-r-card-96' als neu simuliert) | changed=True | on_new=4 | storefront-calls=0 | 1.2s
+  on_new: ('darius-acuff-jr-2026-27-nba-topps-now-r-card-96', 51171485516016, '9.99', True)
+  on_new: ('darius-acuff-jr-2026-27-nba-topps-now-r-card-96', 51171485548784, '46.99', True)
+  on_new: ('darius-acuff-jr-2026-27-nba-topps-now-r-card-96', 51171485581552, '81.99', True)
+  on_new: ('darius-acuff-jr-2026-27-nba-topps-now-r-card-96', 51171485614320, '150.99', True)
+products_json | (403, [])
+poll 4 (sources=products_json,sitemap) | changed=False | on_new=4
+```
+Der Monitor laeuft ueber die Sitemap, die Storefront-API wird dabei nicht aufgerufen. Der Zweitweg `products_json` liefert 403 und faellt sauber auf die naechste Quelle durch.
+
+Test 2: `python toppsfarm.py selftest` aus dem Quelltext, zwei Laeufe, Host-Zeilen woertlich.
+Lauf 1 (vor der Anzeige der gescheiterten Quelle):
+```
+OK  de.topps.com (200) storefront products-JSON
+--- shop-de.topps.com (429)
+OK  es.topps.com (200) storefront products-JSON
+OK  fr.topps.com (200) storefront products-JSON
+OK  it.topps.com (200) storefront products-JSON
+--- nl.topps.com (DNSError)
+--- at.topps.com (DNSError)
+--- be.topps.com (DNSError)
+--- pl.topps.com (Timeout)
+--- shop-uk.topps.com (404)
+```
+Lauf 2:
+```
+OK  de.topps.com (200) sitemap, 15 handles
+--- shop-de.topps.com (404)
+OK  es.topps.com (200) sitemap, 126 handles
+OK  fr.topps.com (200) sitemap, 154 handles
+OK  it.topps.com (200) storefront products-JSON | vorher: sitemap 429
+--- nl.topps.com (DNSError)
+--- at.topps.com (DNSError)
+--- be.topps.com (Timeout)
+--- pl.topps.com (DNSError)
+--- shop-uk.topps.com (404)
+```
+
+Fehler / offen:
+- `sitemap 429` (it.topps.com in Lauf 2; in Lauf 1 fiel die Sitemap auf de/es/fr/it aus, vermutlich ebenfalls 429, der Status wurde dort noch nicht angezeigt; `--- shop-de.topps.com (429)`): der Shop begrenzt die Anfragerate auf dem Frontend. Lauf 1 kam direkt nach Test 1 (ca. 10 Anfragen an de.topps.com in 20 s). Im watch-Betrieb macht der Sitemap-Weg 2 Anfragen je Host und Durchlauf bei `poll_interval_s: 2.5` - damit ist dauerhaft mit 429 zu rechnen. Das Limit wurde nicht umgangen; eingebaut ist nur die 60-s-Pause mit Ausweichen auf die naechste Quelle. Die genaue Grenze ist nicht gemessen. Fuer den Sitemap-Weg sollte `poll_interval_s` deutlich hoeher stehen.
+- `products_json | (403, [])`: `/products.json` bleibt auf de.topps.com 403 (Cloudflare-Blockseite).
+- Der Sitemap-Weg erkennt nur neue Handles, keine Restocks vorhandener Produkte, und die Produkt-ID ist dort ein CRC aus Host+Handle. Solange die Sitemap 200 liefert, laeuft die Storefront-API nicht mehr mit; Restocks werden im Standard also nicht mehr gemeldet. Wer das braucht: `monitor_sources: [storefront, sitemap]`.
+- Die gemerkten Handles liegen nur im Speicher: nach einem Neustart gilt der erste Durchlauf wieder als Ausgangsstand, in der Zwischenzeit erschienene Produkte werden nicht gemeldet.
+- Wie schnell ein neues Produkt in der Sitemap erscheint, ist nicht gemessen (`cache-control: public, max-age=0, must-revalidate`, `x-vercel-cache: MISS`).
+- watch-Betrieb als Dauerlauf und die Exe sind nicht getestet, nur `_poll()` einzeln und der Selftest aus dem Quelltext.
+- `--- shop-de/shop-uk.topps.com (404)`, `nl/at/be/pl (DNSError/Timeout)`: unveraendert wie in Schritt 4.
