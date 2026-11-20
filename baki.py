@@ -13,9 +13,39 @@ def _topps():
     return ToppsModule()
 
 
+def _nike():
+    from modules.nike_gen import NikeModule
+    return NikeModule()
+
+
+def _amazon():
+    from modules.amazon_gen import AmazonModule
+    return AmazonModule()
+
+
+def _riftbound():
+    from modules.riftbound_gen import RiftboundModule
+    return RiftboundModule()
+
+
+def _pokemon():
+    from modules.pokemoncenter import PokemonCenterModule
+    return PokemonCenterModule()
+
+
+def _toolbox():
+    from modules.toolbox import ToolboxModule
+    return ToolboxModule()
+
+
 # Menueplatz -> (Text, Fabrik fuer das Modul). Freie Plaetze fehlen hier.
 MODULES = {
     1: ("Topps EU", _topps),
+    2: ("Nike Account Generator", _nike),
+    3: ("Amazon Account Generator", _amazon),
+    4: ("Riftbound Account Generator", _riftbound),
+    5: ("Pokemon Center", _pokemon),
+    6: ("Toolbox", _toolbox),
 }
 
 # Hardcode-Fallback 1: ansi_shadow, fest eingetragen (falls pyfiglet oder der Font fehlt).

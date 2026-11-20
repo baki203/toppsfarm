@@ -1,14 +1,14 @@
 ﻿- [x] 16a | erledigt
 - [x] 16b | erledigt
-- [x] 16c | core/mailbox.py: async create_inbox() gegen mail.tm, liefert Adresse und Passwort, async wait_for_link(inbox, timeout) pollt und gibt den ersten Link zurueck.
-- [ ] 17 | core/fingerprint.py: apply(page, seed) injiziert Canvas-, WebGL- und Audio-Noise deterministisch aus dem Seed.
-- [ ] 18 | core/human.py: async type_text(page, sel, text) mit 60-180ms Jitter, move_mouse(page), scroll(page).
-- [ ] 19 | core/browser.py: async new_context(profile) liefert persistenten Chromium-Context, headless=new, fingerprint und human aktiv.
-- [ ] 20 | modules/nike_gen.py: async run() erzeugt Identitaet, Postfach, oeffnet Browser, fuellt Registrierung, schreibt accounts/Nike/<email>.txt.
-- [ ] 21 | modules/amazon_gen.py analog auf amazon.de.
-- [ ] 22 | modules/riftbound_gen.py analog Nike.
-- [ ] 23 | modules/pokemoncenter.py: Monitor plus Checkout.
-- [ ] 24 | modules/toolbox.py: Proxy-Test, Captcha-Balance, Webhook-Test.
-- [ ] 25 | Ordner accounts/, accounts/Nike, accounts/Amazon, accounts/Riftbound, proxies/, "Address Toolbox"/ anlegen, leere FirstNames.txt und LastNames.txt.
-- [ ] 26 | settings.json mit Defaults schreiben.
-- [ ] 27 | release.zip bauen.
+- [x] 16c | core/mailbox.py: async create_inbox() gegen mail.tm (liefert Adresse+Passwort), async wait_for_link(inbox, timeout) pollt und gibt den ersten Link zurueck. Getestet: Adresse ok, Poll laeuft.
+- [x] 17 | core/fingerprint.py: fingerprint_init_script(seed) + apply(page, seed) rauschen Canvas-/WebGL-/Audio-Noise deterministisch; JS via node validiert.
+- [x] 18 | core/human.py: Human-Klasse, type_text (60-180ms Jitter), move_mouse, scroll; import ok.
+- [x] 19 | core/browser.py: Browser + new_context(), persistenter Chromium-Context, headless, Fingerprint+Human aktiv; chromium installiert und live getestet (Canvas-Noise deterministisch).
+- [x] 20 | modules/nike_gen.py: NikeGen.run() erzeugt Identitaet+Postfach, oeffnet Browser, fuellt Registrierung, schreibt accounts/Nike/<email>.txt; NikeModule in baki.py Platz 2.
+- [x] 21 | modules/amazon_gen.py analog auf amazon.de; AmazonGen in baki.py Platz 3.
+- [x] 22 | modules/riftbound_gen.py analog Nike; RiftboundGen in baki.py Platz 4.
+- [x] 23 | modules/pokemoncenter.py: PokemonMonitor + PokemonCheckout; PokemonCenterModule in baki.py Platz 5.
+- [x] 24 | modules/toolbox.py: test_proxies, captcha_balance, test_webhook; ToolboxModule in baki.py Platz 6.
+- [x] 25 | Ordner accounts/, accounts/Nike, accounts/Amazon, accounts/Riftbound, proxies/, "Address Toolbox"/ angelegt; FirstNames.txt/LastNames.txt leer in accounts/Nike; leere Ordner mit .gitkeep.
+- [x] 26 | settings.json mit Defaults geschrieben (JSON gueltig).
+- [x] 27 | release.zip neu gebaut (57 MB) mit BakiAIO.exe, START.bat, README, config-Defaults, data-Pools und Ordnerstruktur.

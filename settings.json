@@ -1,0 +1,30 @@
+{
+  "hosts": ["de.topps.com", "es.topps.com", "fr.topps.com", "it.topps.com"],
+  "ship_country": "DE",
+  "impersonate": "chrome",
+  "locale": "de-DE",
+  "concurrency_http": 60,
+  "concurrency_browser": 8,
+  "poll_interval_s": 2.5,
+  "poll_jitter_s": 0.9,
+  "monitor_sources": ["sitemap", "storefront"],
+  "timeout_s": 25,
+  "max_retries": 3,
+  "retry_backoff_s": 1.5,
+  "captcha": {
+    "enabled": true,
+    "max_wait_s": 120,
+    "retry": 2
+  },
+  "queue": {
+    "detect": true,
+    "max_wait_s": 1800,
+    "poll_s": 1.2
+  },
+  "notify": {
+    "on_new": true,
+    "on_ok": true
+  },
+  "state_db": "var/state.sqlite",
+  "log_dir": "var/logs"
+}
