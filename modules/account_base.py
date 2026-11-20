@@ -160,14 +160,14 @@ class AccountGenerator:
         except Exception:
             return None, None
         cfg = getattr(self, "_cfg", None) or _load_settings()
-        zulassig = cfg.sms.get("sites", ["nike", "amazon"])
+        zulassig = cfg.sms.get("sites", ["nike"])
         if not (need_sms(cfg) and self.site in zulassig):
             return None, None
         prov = get_provider(cfg)
         if not prov:
             return None, None
         try:
-            service = cfg.sms.get("service") or {"nike": "nike", "amazon": "amazon"}.get(self.site, "other")
+            service = cfg.sms.get("service") or {"nike": "nike"}.get(self.site, "other")
             r = await prov.buy(service)
             self._sms_order = r.get("order_id")
             return r.get("number"), self._sms_order

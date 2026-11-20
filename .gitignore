@@ -11,3 +11,4 @@ release.zip
 discord/*
 !discord/auswerten.py
 !discord/WISSEN.md
+!discord/WISSEN_roh.md

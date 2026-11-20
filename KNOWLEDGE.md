@@ -72,9 +72,15 @@ Provider-Blocks (nur Feldnamen, keine Keys ausgeben):
 Anti-Fraud-Hinweise (direkt uebernehmen in QUALITY.md):
 - NICHT dieselbe Kreditkarte oder dieselbe Adresse ueber mehrere Konten nutzen -> Auto-Anti-Fraud storniert.
 - Geealterte Konten + eindeutige Adresse/Empfaenger; Bestellloeschung haeufig = "canning".
-- Catch-All ("Catchall will not pass for sure") bei Amazon-Neuerstellung eher nicht; OTP via E-Mail,
-  nur bei Trigger SMS (`validateAccountsWithPhoneNumberIfNeeded`).
+- OTP via E-Mail (Catch-All), SMS nur bei Trigger (`validateAccountsWithPhoneNumberIfNeeded`).
 - Passwort: gross/klein/Zahl, min. 8 Zeichen.
+
+**Verbindliche Nutzer-Korrektur (2026-11-20, Vorrang vor Chat-/Doku-Fakten):**
+- Das in der Doku/Chat genannte "~500 Konten/Tag"-Limit ist **kein echtes Limit** - mit eigenem Bot
+  sind deutlich mehr Konten pro Tag moeglich. Limit ggf. nur durch eigene Ressourcen/Domains gesetzt.
+- **SMS-Provider sind fuer Amazon nicht noetig**: non-PVA-Registrierung funktioniert. OTP laeuft
+  per E-Mail (Catch-All). Telefonnummer nur eintragen, wenn Amazon sie im Flow zwingend verlangt.
+- Voraussetzung fuer Skalierung: **ausreichend eigene Catch-All-Domains** (mehrere, nicht eine einzige).
 
 CSV-Felder: SITE, MODE, PID(ASIN), OFFER, QUANTITY, MAX QUANTITY, MAX PRICE, DELAY(ms), EMAIL, PASSWORD,
 FIRST/LAST NAME, ADDRESS LINE 1/2, HOUSE NUMBER, CITY, ZIPCODE, STATE, COUNTRY(ISO2), PHONE, PAYMENT,

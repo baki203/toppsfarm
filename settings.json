@@ -40,7 +40,7 @@
     "provider": "5sim",
     "country": "RU",
     "only_on_request": true,
-    "sites": ["nike", "amazon"],
+    "sites": ["nike"],
     "service": ""
   },
   "geo": {

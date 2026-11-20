@@ -42,7 +42,6 @@ sms:
   only_on_request: true
   sites:
   - nike
-  - amazon
   service: ""
 geo:
   enabled: false

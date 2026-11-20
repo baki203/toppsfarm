@@ -8,7 +8,7 @@ strenger: explizite Ja/Nein-Punkte + messbare Sperrquote statt "Best Effort".
 
 | # | Punkt | Mindeststandard | Skyridge/Pepper-Bezug |
 |---|-------|-----------------|------------------------|
-| A1 | Eigene Catch-All-Domain je Mastermail | Statt Wegwerf-/tmp-Mail: eigene Domain mit Catch-All pro Mastermail, Weiterleitung in ein Konto. Generator und OTP/Link-Verifikation darueber. | Skyridge `Mastermails[].catchall`; Pepper: "Catchall will not pass for sure" bei Amazon -> eigene Domain noetig, Wegwerf geht nicht. |
+| A1 | Eigene Catch-All-Domain je Mastermail | Statt Wegwerf-/tmp-Mail: eigene Domain mit Catch-All pro Mastermail, Weiterleitung in ein Konto. Generator und OTP/Link-Verifikation darueber. **Pflicht fuer Amazon, mit mehreren eigenen Domains (Skalierung).** | Skyridge `Mastermails[].catchall`; Pepper: "Catchall will not pass for sure" bei Amazon -> eigene Domain noetig, Wegwerf geht nicht. |
 | A2 | Ein persistentes Browserprofil je Konto | Je Konto eigenes Profil-Verzeichnis (var/browser-<site>/<account>), nie geteilt. | Skyridge `SessionStore` legt Session je Konto an. |
 | A3 | Eine sticky Wohn-IP je Konto | Eine sticky Residential-IP (nicht rotierend) je Konto, fuer die Lebensdauer gehalten. | Skyridge `GeoCoder.position_1/2` = zwei feste Standorte; Pepper: ISP/DC + Proxy-Checker. |
 | A4 | IP-Land und Region passend zur Adresse | IP-Geo (Land/Region) muss zur Profiladresse passen, sonst kein Taskstart. | Pepper Region-Switcher `Shopify <CC>`, COUNTRY je Task. |
@@ -17,7 +17,7 @@ strenger: explizite Ja/Nein-Punkte + messbare Sperrquote statt "Best Effort".
 | A7 | Adresse erst in zweiter Session | Registrierung OHNE Adresse; Adresse/Zahlung erst in separater spaeterer Session anlegen. | Pepper Amazon `ADDRESS`-Modus getrennt vom Drop; Skyridge Modul je Feature. |
 | A8 | Karte erst vor dem Kauf | Karte wird erst beim Checkout/Kauf gesetzt (Default-Zahlung), nie bei der Registrierung. | Pepper: Default-Zahlungsmethode, `ADDRESS`-Modus. |
 | A9 | Erstkauf klein und zeitversetzt | Erster Kauf: geringer Wert, 12-72 h nach Kontoerstellung; danach steigern. | Pepper: aged accounts, "rest your account 3-5 mins"; Anti-Fraud "canning". |
-| A10 | Telefon nur bei Aufforderung | Telefonnummer nur eintragen, wenn der Shop sie zwingend verlangt (SMS-OTP), sonst leer lassen. | Pepper `checkPhone`/`noPhoneOnly`; Amazon `validateAccountsWithPhoneNumberIfNeeded`. |
+| A10 | Telefon nur bei Aufforderung | Telefonnummer nur eintragen, wenn der Shop sie zwingend im Flow verlangt (SMS-OTP), sonst komplett weglassen. **Amazon: SMS nicht noetig (non-PVA), Telefon nur wenn Amazon es im Flow zwingend verlangt.** | Pepper `checkPhone`/`noPhoneOnly`; Amazon `validateAccountsWithPhoneNumberIfNeeded`. |
 
 Erfuellungsgrad je Modul wird als Prozentsatz A1..A10 gemeldet.
 
@@ -64,7 +64,11 @@ Nach jedem Lauf (Monitor-Stopp, Checkout-Ende, Generator-Ende, Toolbox-Test) wir
 - Messpunkte: attempts/banned/success je Registrierung; Sperrquote massgeblich fuer Generatorqualitaet.
 
 ### C4 Amazon Gen (Generator)
-- A1-A6, A10 (Amazon: kein Catch-All-Wegwerf; OTP per E-Mail, SMS nur bei Trigger).
+- A1 Pflicht (mehrere eigene Catch-All-Domains fuer Skalierung), A2-A6, A10.
+- A10 entschaerft: SMS-Provider nicht noetig, non-PVA-Registrierung; Telefon nur wenn Amazon es im
+  Flow zwingend verlangt, sonst weglassen. OTP per E-Mail (Catch-All).
+- "500 Konten/Tag"-Limit ist kein echtes Limit (Nutzer-Korrektur): mit eigenem Bot mehr moeglich,
+  Grenze nur durch eigene Domains/Ressourcen.
 - A7/A8 entfallen fuer Generator; ADDRESS-Modus als separates Modulziel.
 - Retry-Logik: bei Login-Loop 3-5 min Pause (weiches Rate-Limit), max 3 Retries.
 

@@ -1,0 +1,107 @@
+# VORGEHEN - Baki AIO: Gesamtplan mit Pruefpunkten
+
+Lies diesen Plan mit, waehrend ich arbeite. Jede Phase hat ein erwartetes Ergebnis und
+Zeitrahmen. Wenn etwas davon nicht eintritt, liegt eine falsche Annahme vor - sag es mir.
+
+## A. Wissensextraktion (Discord-Export -> KNOWLEDGE/QUALITY)
+
+| Schritt | Erwartetes Ergebnis | Zeitrahmen |
+|---------|---------------------|-----------|
+| Vorfilter | 10.368 relevante Nachrichten, 14 Stuecke | abgeschlossen |
+| Voller Lauf (`--lauf`) | 14 Stuecke, ~$0.10, Ausgabe in WISSEN_roh.md | abgeschlossen |
+| WISSEN.md bauen | max 150 Zeilen, nach Thema, Zaehler, Duplikate zusammengelegt | 15 min |
+| Gegenprobe | Einzelmeinungen als "behauptet" markiert, nichts als Fakt | laufend |
+| Umsetzung | Belegte Fakten in KNOWLEDGE.md + QUALITY.md ueberfuehren | je Phase |
+
+**Woran du merkst, dass etwas falsch ist:** Stueckzahl weicht stark ab, Kosten explodieren
+ueber $1-Stopp, WISSEN.md >150 Zeilen, ein "Fakt" stammt nur von einer einzigen Person.
+
+## B. Amazon-Generator (amazon_gen)
+
+| Schritt | Erwartetes Ergebnis | Zeitrahmen |
+|---------|---------------------|-----------|
+| Non-PVA-Registrierung | Konto erstellt ohne Telefon, OTP per Catch-All-E-Mail | 30 min |
+| Mehrere Catch-All-Domains | Konto-Verteilung ueber mehrere Domains, kein Einzel-Domain-Clipping | 30 min |
+| ADDRESS-Modus | Adresse+Karte in zweiter Session, getrennt vom Drop | 30 min |
+| Selftest | topps-artiger Selftest, Sperrquote < 5 % | 15 min |
+
+**Woran du merkst, dass etwas falsch ist:** Bot verlangt Telefon/SMS trotz non-PVA; nur eine
+Domain wird genutzt; "500/Tag"-Limit wird als Stop ausgegeben (kein echtes Limit).
+
+## C. Nike-Generator (nike_gen, Akamai, Browser)
+
+| Schritt | Erwartetes Ergebnis | Zeitrahmen |
+|---------|---------------------|-----------|
+| Browser-Registrierung | Konto in echtem Browserprofil, Billing==Shipping | 45 min |
+| Draw-Entry (LEO/DAN) | Entry mit Dropzeit von Produktseite, BPE vermeiden | 45 min |
+
+**Woran du merkst, dass etwas falsch ist:** reiner Request-Modus statt Browser; BPE trotz
+Billing==Shipping; SMS wird als Pflicht behandelt obwohl optional.
+
+## D. Topps/Shopify-Checkout (topps, shopify_core)
+
+| Schritt | Erwartetes Ergebnis | Zeitrahmen |
+|---------|---------------------|-----------|
+| products.json | 200 statt Cloudflare-403 (Cookies/curl_cffi) | laufend |
+| Cart-Flow | echter Checkout-Link fuer de.topps.com, Discord bekommt Link | 1 h |
+| Shopify Guest-Checkout | vorgewaermter Checkout, Queue-Drop, Region-Switcher | 45 min |
+
+**Woran du merkst, dass etwas falsch ist:** Cloudflare-403 bleibt; Discord bekommt keinen
+Checkout-Link; Guest-Checkout erfordert unnoetig ein Konto.
+
+## E. PokemonCenter
+
+| Schritt | Erwartetes Ergebnis | Zeitrahmen |
+|---------|---------------------|-----------|
+| Queue-it ueberstehen | Queue-Warteschlange ueberwunden, Konto genutzt | 1 h |
+| de-de/en-gb | beide Stores, Lieferung nach DE | 45 min |
+
+**Woran du merkst, dass etwas falsch ist:** Queue-it wird nie ueberwunden; nur ein Store.
+
+## F. Retail (MediaMarkt, Saturn, Smyths, PSN, SNKRS)
+
+| Schritt | Erwartetes Ergebnis | Zeitrahmen |
+|---------|---------------------|-----------|
+| Consent-Wall | Cookie-Banner automatisch wegklicken | 30 min |
+| JSON-LD | Preise/Lager getrennt auswerten | 30 min |
+| Queue-it (PSN) | Queue ueberstehen, Checkout-Link | 45 min |
+| Sperrquote | Cloudflare/Accountharvester-403 als banned:http zaehlen | laufend |
+
+**Woran du merkst, dass etwas falsch ist:** Cookie-Banner blockt; WAF blockt HTTP-Sitemap
+(Smyths/Nike) obwohl Browser-Ersatz noetig waere; Sperren werden nicht gezaehlt.
+
+## G. Build und Release
+
+| Schritt | Erwartetes Ergebnis | Zeitrahmen |
+|---------|---------------------|-----------|
+| release.zip bauen | 57 MB, lauffaehig | 10 min |
+| Release pushen (tag) | GitHub-Release | 10 min |
+
+**Woran du merkst, dass etwas falsch ist:** release.zip fehlt oder startet nicht.
+
+---
+
+## Bekannte Korrekturen (Vorrang vor Chat-/Doku-Fakten)
+
+- **Kein 500-Konten/Tag-Limit bei Amazon**: mit eigenem Bot sind deutlich mehr pro Tag moeglich.
+- **Kein SMS-Provider fuer Amazon noetig**: non-PVA-Registrierung funktioniert.
+- **Weg = genuegend eigene Catch-All-Domains**, nicht SMS/Telefon.
+- **Telefon nur bei zwingender Aufforderung im Flow**, sonst komplett weglassen.
+
+## Messwerte je Phase (landen in STAND.md)
+
+| Phase | Messwert |
+|-------|----------|
+| A Wissensextraktion | Stueckzahl, Kosten ($), Nachrichtenanzahl |
+| B Amazon-Gen | Sperrquote, Erfolgsquote, Domains genutzt |
+| C Nike-Gen | Sperrquote (BPE separat), Erfolgsquote |
+| D Topps/Shopify | Statuscodes je Host, Checkout-Link geliefert (ja/nein) |
+| E PokemonCenter | Queue-Ueberwindung, Checkout-Link |
+| F Retail | Sperrquote (banned:http), Erfolgsquote |
+| G Build | release.zip vorhanden, Groesse |
+
+## Regel: "behauptet" vs. "Fakt"
+
+Jeder neue Fremdwert aus dem Discord-Export wird als **"behauptet"** markiert und erst nach
+Gegenprobe (eigener Test, Nutzerbestaetigung oder mehrere unabhaengige Stimmen) als **Fakt**
+uebernommen. Einzelmeinungen bleiben dauerhaft "behauptet".
