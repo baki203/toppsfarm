@@ -1,10 +1,22 @@
 #!/usr/bin/env python3
-"""Baki AIO - Startpunkt. Banner und Menue 1-14 / 0. Noch ohne Modul-Logik."""
+"""Baki AIO - Startpunkt. Banner und Menue 1-14 / 0. Platz 1: Topps."""
 from __future__ import annotations
 
 import sys
 
 SLOTS = 14
+
+
+def _topps():
+    # Import erst bei Auswahl, damit das Menue sofort erscheint.
+    from modules.topps import ToppsModule
+    return ToppsModule()
+
+
+# Menueplatz -> (Text, Fabrik fuer das Modul). Freie Plaetze fehlen hier.
+MODULES = {
+    1: ("Topps EU", _topps),
+}
 
 # Hardcode-Fallback 1: ansi_shadow, fest eingetragen (falls pyfiglet oder der Font fehlt).
 BANNER_SHADOW = """\
@@ -44,7 +56,7 @@ def show_menu() -> None:
     print(banner())
     print(" " + "=" * 50)
     for i in range(1, SLOTS + 1):
-        print(f"  {i:>2}  -")
+        print(f"  {i:>2}  {MODULES[i][0] if i in MODULES else '-'}")
     print("   0  Ende")
     print(" " + "=" * 50)
 
@@ -59,7 +71,12 @@ def menu() -> int:
             return 0
         if wahl == "0":
             return 0
-        if wahl.isdigit() and 1 <= int(wahl) <= SLOTS:
+        if wahl.isdigit() and int(wahl) in MODULES:
+            try:
+                MODULES[int(wahl)][1]().run()
+            except Exception as e:  # ein Fehler im Modul soll das Menue nicht beenden
+                print(f" Fehler: {type(e).__name__}: {e}")
+        elif wahl.isdigit() and 1 <= int(wahl) <= SLOTS:
             print(f" {int(wahl)}: noch nicht belegt.")
         else:
             print(" Ungueltige Auswahl.")

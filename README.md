@@ -1,12 +1,13 @@
 ﻿# Baki AIO
 Modulsystem. Start: `START.bat` oder `python baki.py` (Banner + Menue 1-14).
 
-- `baki.py` - Startpunkt, Menue, Modul-Registry
+- `baki.py` - Startpunkt, Menue, Platz 1 = Topps
 - `core/` - gemeinsame Bausteine
-- `modules/base.py` - Modul-Interface (`Module.run()`)
-- `modules/topps.py` - Topps-EU-Monitor (frueher toppsfarm.py), `modules/topps_module.py` bindet ihn ins Menue ein
+- `modules/base.py` - Modul-Interface (`BaseModule.run()`)
+- `modules/topps.py` - Topps-EU-Monitor (frueher toppsfarm.py) mit `ToppsModule(BaseModule)`, Untermenue ueber Menuepunkt 1
+- `toppsfarm.py` - nur noch Weiterleitung auf `modules/topps.py`
 
-Direktaufruf ohne Menue: `python baki.py topps selftest` (alle bisherigen toppsfarm-Befehle).
+Direktaufruf ohne Menue: `python toppsfarm.py selftest` (alle bisherigen toppsfarm-Befehle).
 
 ## Topps
 HTTP-first Topps-EU-Monitor. `setup` beim ersten Start ausfuellen.

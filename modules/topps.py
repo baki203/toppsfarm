@@ -21,6 +21,8 @@ from curl_cffi.requests import AsyncSession
 from rich.console import Console
 from rich.logging import RichHandler
 
+from modules.base import BaseModule
+
 ROOT = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent.parent
 if not (ROOT / "config").exists() and (ROOT.parent / "config").exists():
     ROOT = ROOT.parent
@@ -1105,8 +1107,68 @@ def main(argv=None):
                              a.tasks, a.qty, a.mode, a.card_http))
 
 
+class ToppsModule(BaseModule):
+    """Topps EU als Baki-AIO-Modul. run() zeigt das Topps-Untermenue."""
+    title = "Topps EU"
+    # (Text, feste Argumente, abgefragte Argumente als (Flag, Frage))
+    actions = [
+        ("Selftest", ["selftest"], []),
+        ("Watch - Cart-Links (wenig Daten)", ["watch", "--mode", "cart"], []),
+        ("Watch - mit Browser", ["watch", "--mode", "browser"], []),
+        ("Drop auf Variante", ["drop", "--mode", "cart"],
+         [("--host", "Host"), ("--variant", "Variant-ID"), ("--tasks", "Tasks")]),
+        ("Profile pruefen", ["profiles-check"], []),
+        ("Statistik", ["stats"], []),
+        ("Setup erneut ausfuehren", ["setup"], []),
+        ("Browser-Engine installieren", ["install-browser"], []),
+    ]
+
+    def call(self, argv) -> int:
+        """Fuehrt einen toppsfarm-Befehl aus, liefert den Exitcode."""
+        try:
+            main(list(argv))
+        except KeyboardInterrupt:
+            CONSOLE.print("[yellow]abgebrochen[/]")
+            return 130
+        except SystemExit as e:  # argparse (--help, falsche Argumente)
+            return e.code if isinstance(e.code, int) else (0 if e.code is None else 1)
+        return 0
+
+    def run(self):
+        while True:
+            print()
+            print(f" --- {self.title} ---")
+            for i, (text, _, _) in enumerate(self.actions, 1):
+                print(f"  {i:>2}  {text}")
+            print("   0  Zurueck")
+            try:
+                wahl = input(" Topps-Auswahl: ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print()
+                return 0
+            if wahl == "0":
+                return 0
+            if not (wahl.isdigit() and 1 <= int(wahl) <= len(self.actions)):
+                print(" Ungueltige Auswahl.")
+                continue
+            _, argv, fragen = self.actions[int(wahl) - 1]
+            argv = list(argv)
+            try:
+                for flag, frage in fragen:
+                    wert = input(f" {frage}: ").strip()
+                    if wert:
+                        argv += [flag, wert]
+            except (EOFError, KeyboardInterrupt):
+                print()
+                return 0
+            try:
+                code = self.call(argv)
+            except Exception as e:  # ein Fehler im Modul soll das Menue nicht beenden
+                print(f" Fehler: {type(e).__name__}: {e}")
+                continue
+            if code:
+                print(f" Exitcode {code}")
+
+
 if __name__ == "__main__":
-    try:
-        main()
-    except KeyboardInterrupt:
-        CONSOLE.print("[yellow]abgebrochen[/]")
+    sys.exit(ToppsModule().call(sys.argv[1:]))

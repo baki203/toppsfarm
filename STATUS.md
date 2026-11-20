@@ -661,3 +661,67 @@ Offen (unveraendert, nicht Teil von 15c):
 - Die Zeilen des pyfiglet-Banners enden auf Leerzeichen (der Hardcode-Banner nicht). Rein optisch, nicht geaendert.
 - `baki.py` ignoriert Argumente; `START.bat` ruft noch `baki.py topps setup` auf (15d/15e).
 - `modules/topps_module.py` importiert `Action, Module` aus `modules.base` (gibt es nicht) -> laeuft nicht (15d).
+
+## Schritt 15d - toppsfarm.py -> modules/topps.py als ToppsModule(BaseModule) (2026-11-20)
+Ergebnis: erledigt.
+- `modules/topps.py` (die Verschiebung von `toppsfarm.py` lag schon im Repo) enthaelt jetzt die Klasse `ToppsModule(BaseModule)`:
+  - `run(self)`: Topps-Untermenue 1-8 (Selftest, Watch cart, Watch browser, Drop, Profile pruefen, Statistik, Setup, Browser-Engine) und `0  Zurueck`. Drop fragt Host, Variant-ID, Tasks ab.
+  - `call(self, argv)`: fuehrt einen der bisherigen toppsfarm-Befehle ueber das unveraenderte `main(argv)` aus und liefert den Exitcode (Strg+C -> 130, argparse-Fehler -> 2).
+  - Die Topps-Logik selbst (Monitor, Checkout, Settings) ist nicht angefasst.
+- `modules/topps_module.py` geloescht (Klasse liegt jetzt in `modules/topps.py`; die Datei importierte `Action, Module`, die es in `base.py` nicht gibt).
+- `baki.py`: Tabelle `MODULES = {1: ("Topps EU", ...)}`. Menuepunkt 1 zeigt `Topps EU` und ruft `ToppsModule().run()` auf, Import erst bei Auswahl. 2-14 weiter `noch nicht belegt`. Eine Exception aus einem Modul wird als ` Fehler: ...` gemeldet, das Menue laeuft weiter.
+- `toppsfarm.py` neu im Hauptordner als duenne Weiterleitung: `ToppsModule().call(sys.argv[1:])`. Alte Aufrufe `python toppsfarm.py <befehl>` laufen weiter.
+- `README.md` an den Stand angepasst.
+
+Tests mit `.venv\Scripts\python.exe`, `PYTHONIOENCODING=utf-8`:
+- `py_compile baki.py toppsfarm.py modules/topps.py`: ohne Fehler.
+- `baki.py` mit Eingabe `1`, `9`, `6`, `0`, `2`, `0` per Pipe, Ausgabe woertlich, gekuerzt (Banner und wiederholte Menues weggelassen):
+```
+ ==================================================
+   1  Topps EU
+   2  -
+   ...
+  14  -
+   0  Ende
+ ==================================================
+ Auswahl:
+ --- Topps EU ---
+   1  Selftest
+   2  Watch - Cart-Links (wenig Daten)
+   3  Watch - mit Browser
+   4  Drop auf Variante
+   5  Profile pruefen
+   6  Statistik
+   7  Setup erneut ausfuehren
+   8  Browser-Engine installieren
+   0  Zurueck
+ Topps-Auswahl:  Ungueltige Auswahl.
+ Topps-Auswahl: {}
+ Topps-Auswahl:
+ Auswahl:  2: noch nicht belegt.
+ Auswahl:
+exit=0
+```
+  (`{}` ist die Ausgabe von Statistik: leere State-DB.)
+- Weiterleitung `python toppsfarm.py stats`: Ausgabe `{}`, `exit=0`.
+- Weiterleitung ohne Befehl, `python toppsfarm.py`, woertlich:
+```
+usage: toppsfarm [-h]
+                 {setup,selftest,profiles-check,stats,install-browser,watch,drop} ...
+toppsfarm: error: the following arguments are required: cmd
+exit=2
+```
+  Das ist das alte Verhalten (Befehl ist Pflicht), kein neuer Fehler.
+- `python -m modules.topps profiles-check`: keine Ausgabe (keine `config\profiles.yaml`), `exit=0`.
+
+Fehler: keine.
+
+Nicht getestet:
+- Selftest, Watch, Drop, Setup, Browser-Engine ueber das Untermenue (Netz-/Live-Zugriffe bzw. interaktiv). Getestet sind nur Statistik, Profile pruefen und die Menuefuehrung.
+- Die Exe: `dist\BakiAIO.exe` ist nicht neu gebaut und enthaelt diesen Stand nicht (15e).
+- Nur per Pipe, nicht im echten Konsolenfenster.
+
+Offen (15e):
+- `START.bat` ruft bei fehlender `config\profiles.yaml` weiter `%BAKI% topps setup` auf; `baki.py` nimmt keine Argumente an und zeigt dann nur das Menue. Setup ist jetzt ueber Menue 1 -> 7 oder `python toppsfarm.py setup` erreichbar.
+- `toppsfarm.spec` (unversioniert, per .gitignore) baut jetzt nur noch die Weiterleitung; massgeblich ist `BakiAIO.spec`.
+- Keine neuen Schritte angehaengt, 15d ist nicht blockiert. Der Hinweis zu den Schritten 16-24 (siehe erneuter Lauf 15a) gilt weiter.
