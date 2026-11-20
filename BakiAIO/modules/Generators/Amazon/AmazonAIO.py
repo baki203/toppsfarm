@@ -140,9 +140,9 @@ class AmazonAIOModule:
             n = int(input("  Anzahl Konten [1]: ").strip() or "1")
         except ValueError:
             n = 1
-        print("  Hinweis: fuer OTP per E-Mail ist eine Catch-All-Domain in")
-        print("  settings.json (mail.catchall) erforderlich. Telefon nur bei")
-        print("  Aufforderung (A10).")
+        print("  Hinweis: fuer OTP per E-Mail nutzt der Generator die")
+        print("  Skyridge-Mastermails (settings.json 'Mastermails', non-PVA).")
+        print("  Telefon nur bei Aufforderung (A10).")
         for i in range(n):
             log.line("Gen", "", "", f"Konto {i+1}/{n} anlegen ...", "info")
             acc = await self._gen_one(cc, log, proxy)
@@ -170,7 +170,11 @@ class AmazonAIOModule:
         from utilities.identity import IdentityGenerator
 
         ident = IdentityGenerator().generate()
-        inbox = await create_inbox()
+        try:
+            inbox = await create_inbox()
+        except Exception as exc:
+            log.line("Gen", "", "", f"Mailbox: {exc}", "err")
+            return None
         if not inbox or not inbox.get("address"):
             return None
         async with self._client(cc, email=inbox["address"], log=log, proxy=proxy) as c:
@@ -232,7 +236,11 @@ class AmazonAIOModule:
                          log: SkyLogger, proxy: str | None = None) -> bool:
         """Sendet Passwort-Reset-Link (forgotpassword) an die Mailbox."""
         from utilities.mailbox import create_inbox, wait_for_link
-        inbox = await create_inbox()
+        try:
+            inbox = await create_inbox()
+        except Exception as exc:
+            log.line("Reset", "", email, f"Mailbox: {exc}", "err")
+            return False
         if not inbox or not inbox.get("address"):
             return False
         async with self._client(cc, email=email, log=log, proxy=proxy) as c:

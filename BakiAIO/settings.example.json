@@ -1,0 +1,151 @@
+{
+  "license-key": "",
+  "discord-webhook": "",
+  "deviceRotation": true,
+  "remoteControl": true,
+  "CaptchaProvider": {
+    "CapMonster": "",
+    "CapSolver": "",
+    "AntiCaptcha": "",
+    "EzCaptcha": "",
+    "CaptchaFun": "",
+    "Resolvr": "",
+    "NoneCap": ""
+  },
+  "SMSProvider": {
+    "5sim": "",
+    "5simOperator": "",
+    "sms-man": "",
+    "sms-man-max-price": "",
+    "sms-pool": "",
+    "sms-pool-max-price": "",
+    "sms-bower": "",
+    "sms-bower-max-price": "",
+    "sms-bower-min-price": "",
+    "sms-bower-provider-ids": "",
+    "sms-bower-virtual": false,
+    "daisy": "",
+    "daisyOperator": "",
+    "daisy-max-price": "",
+    "herosms": "",
+    "herosmsOperator": "",
+    "herosms-max-price": "",
+    "herosms-fixed-price": "",
+    "grizzly": "",
+    "grizzlyOperator": "",
+    "grizzly-max-price": "",
+    "grizzly-provider-ids": "",
+    "smspva": "",
+    "textverified": "",
+    "textverifiedUsername": "",
+    "textverified-max-price": ""
+  },
+  "GeoCoder": {
+    "mapbox": "",
+    "position_1": "",
+    "position_2": ""
+  },
+  "Mastermails": [],
+  "OAuthForwarder": {
+    "target_email": "",
+    "smtp_server": "",
+    "smtp_port": 587,
+    "smtp_username": "",
+    "smtp_password": "",
+    "smtp_use_tls": true,
+    "smtp_use_ssl": false,
+    "since_days": 1,
+    "delete_after_forward": false,
+    "unread_only": false,
+    "monitor_mode": true,
+    "monitor_interval": 30
+  },
+  "SkyridgeInbox": {
+    "enabled": false,
+    "userApiKey": ""
+  },
+  "Ejoin": {
+    "host": "0.0.0.0",
+    "port": 8787,
+    "path": "/ejoin/sms",
+    "auth_username": "",
+    "auth_password": "",
+    "sms_timeout": 180,
+    "sim_cooldown": 300,
+    "wait_for_free_sim": 60,
+    "code_regex": "\\b(\\d{4,8})\\b",
+    "auto_learn": true,
+    "sims": []
+  },
+  "Amazon": {
+    "noPhoneOnly": true,
+    "checkPhone": false,
+    "noCaptchaOnly": true
+  },
+  "AycdInbox": {
+    "apiKey": ""
+  },
+  "hosts": [],
+  "ship_country": "DE",
+  "impersonate": "chrome",
+  "locale": "de-DE",
+  "concurrency_http": 60,
+  "concurrency_browser": 8,
+  "poll_interval_s": 2.5,
+  "poll_jitter_s": 0.9,
+  "monitor_sources": [
+    "sitemap",
+    "storefront"
+  ],
+  "timeout_s": 25,
+  "max_retries": 3,
+  "retry_backoff_s": 1.5,
+  "captcha": {
+    "enabled": true,
+    "max_wait_s": 120,
+    "retry": 2
+  },
+  "queue": {
+    "detect": true,
+    "max_wait_s": 1800,
+    "poll_s": 1.2
+  },
+  "notify": {
+    "on_new": true,
+    "on_ok": true
+  },
+  "mail": {
+    "provider": "catchall",
+    "since_days": 1,
+    "delete_after_fetch": false,
+    "confirm_regex": "https?://\\S+|\\b\\d{6}\\b",
+    "imap_host": "",
+    "imap_port": 993
+  },
+  "sms": {
+    "enabled": false,
+    "provider": "5sim",
+    "country": "RU",
+    "only_on_request": true,
+    "sites": [
+      "nike"
+    ],
+    "service": ""
+  },
+  "geo": {
+    "enabled": false,
+    "strict": true
+  },
+  "proxy": {
+    "source": "auto",
+    "precheck": true,
+    "check_timeout_s": 15
+  },
+  "state_db": "var/state.sqlite",
+  "log_dir": "var/logs",
+  "pokemon_hosts": [
+    "www.pokemoncenter.com",
+    "www.pokemoncenter.com/de-de",
+    "www.pokemoncenter.com/en-gb"
+  ]
+}

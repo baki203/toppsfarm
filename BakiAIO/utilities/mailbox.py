@@ -1,6 +1,11 @@
 """Mailbox-Engine: temporaere Adressen ueber mail.tm ODER eigener Catch-All
 per IMAP (A1). Provider wird ueber Settings.mail.provider gewaehlt:
-'mailtm' (Fallback) oder 'catchall'."""
+'mailtm' (Fallback) oder 'catchall'.
+
+Der 'catchall'-Provider nutzt die Skyridge-Mastermails (settings.json
+"Mastermails": Eintraege mit 'catchall'-Adresse + 'mastermail'/'password'
+fuer den IMAP-Zugriff). OAuthForwarder (target_email) ist die zweite Quelle,
+falls die Mail dorthin weitergeleitet wird."""
 from __future__ import annotations
 
 import asyncio
@@ -9,6 +14,7 @@ import random
 import re
 import string
 import time
+from datetime import date, timedelta
 
 from curl_cffi.requests import AsyncSession
 
@@ -28,11 +34,14 @@ def _session() -> AsyncSession:
 async def create_inbox(cfg=None) -> dict:
     """-> {'address': ..., 'password': ..., 'provider': 'mailtm'|'catchall'}.
     Legt ein Konto auf mail.tm an oder erzeugt eine Catch-All-Adresse (A1).
-    `cfg` ist ein Settings-Objekt (oder None fuer mail.tm)."""
-    provider = (cfg.mail.get("provider", "mailtm") if cfg and getattr(cfg, "mail", None)
+    `cfg` ist ein Settings-Objekt (oder None -> Settings.load())."""
+    if cfg is None:
+        from modules.Engine.Shopify.shopify_core import Settings
+        cfg = Settings.load()
+    provider = (cfg.mail.get("provider", "mailtm") if getattr(cfg, "mail", None)
                 else "mailtm")
     if provider == "catchall":
-        return _catchall_inbox(cfg.mail.get("catchall", {}))
+        return _catchall_inbox(cfg)
     async with _session() as s:
         r = await s.get(f"{API}/domains")
         if r.status_code != 200:
@@ -66,29 +75,69 @@ def _catchall_domains(conf: dict) -> list[str]:
     return doms
 
 
-def _catchall_inbox(conf: dict) -> dict:
-    """Erzeugt eine Catch-All-Adresse `<zufall>@<domain>` (A1) auf einer der
-    konfigurierten Domains, round-robin verteilt (B2). Der IMAP-Zugriff erfolgt
-    ueber das Master-Postfach, an das der Catch-All weiterleitet."""
+def _catchall_inbox(cfg) -> dict:
+    """Erzeugt eine Catch-All-Adresse aus den Skyridge-Mastermails (round-robin,
+    B2). Der IMAP-Zugriff erfolgt ueber das Master-Postfach (mastermail/password),
+    an das der Catch-All weiterleitet. Liefert ein klares MailboxError, wenn kein
+    gueltiger IMAP-Zugang konfiguriert ist."""
     global _CATCHALL_RR
-    doms = _catchall_domains(conf)
-    if not doms:
-        raise MailboxError(
-            "catchall: keine Domain in settings.json (mail.catchall.domains oder .domain)")
-    domain = doms[_CATCHALL_RR % len(doms)]
+    if cfg is None:
+        from modules.Engine.Shopify.shopify_core import Settings
+        cfg = Settings.load()
+    mail_cfg = cfg.mail or {}
+    mms = [m for m in (mail_cfg.get("mastermails") or []) if isinstance(m, dict)]
+    entries = [m for m in mms if str(m.get("catchall") or "").strip()]
+    if not entries:
+        raise MailboxError("catchall: keine Mastermails/Catch-All-Adressen in settings.json")
+    base = next((m for m in mms if m.get("mastermail") and m.get("password")), None)
+    entry = entries[_CATCHALL_RR % len(entries)]
     _CATCHALL_RR += 1
-    local = "".join(random.choice(string.ascii_lowercase + string.digits)
-                    for _ in range(12))
-    return {"address": f"{local}@{domain}", "password": "",
-            "provider": "catchall",
-            "imap": {"host": conf.get("imap_host", ""), "port": int(conf.get("imap_port", 993)),
-                     "user": conf.get("user", ""), "password": conf.get("password", "")}}
+    address = str(entry.get("catchall") or "").strip()
+    imap_user = str(entry.get("mastermail") or (base or {}).get("mastermail") or "").strip()
+    imap_pass = str(entry.get("password") or (base or {}).get("password") or "").strip()
+    host = str(entry.get("imap_host") or mail_cfg.get("imap_host") or "").strip()
+    if not host:
+        host = _imap_host_for(mms, imap_user)
+    port = int(entry.get("imap_port") or mail_cfg.get("imap_port") or 993)
+    oauth = mail_cfg.get("oauth_forwarder") or {}
+    # OAuthForwarder als zweite Quelle: dorthin weitergeleitete Mail lesen
+    if isinstance(oauth, dict) and oauth.get("target_email") and not imap_user:
+        imap_user = str(oauth["target_email"]).strip()
+    if not (host and imap_user and imap_pass):
+        raise MailboxError(
+            "catchall: IMAP nicht konfiguriert (Mastermails ohne IMAP/mail.catchall)")
+    return {
+        "address": address, "password": imap_pass, "provider": "catchall",
+        "imap": {"host": host, "port": port, "user": imap_user, "password": imap_pass},
+        "since_days": int(mail_cfg.get("since_days", 1)),
+        "delete_after_fetch": bool(mail_cfg.get("delete_after_fetch", False)),
+        "regex": mail_cfg.get("confirm_regex", r"https?://\S+|\b\d{6}\b"),
+        "oauth": oauth,
+    }
+
+
+def _imap_host_for(mastermails: list, user: str = "") -> str:
+    """Leitet den IMAP-Server aus einer Mastermail ab (gmail -> imap.gmail.com,
+    sonst imap.<domain>). Leer, wenn keine E-Mail-Adresse vorliegt."""
+    for m in mastermails or []:
+        mm = str((m or {}).get("mastermail") or "").strip()
+        if not mm and user:
+            mm = user
+        if "@" in mm:
+            dom = mm.rsplit("@", 1)[1].lower()
+            if dom in ("gmail.com", "googlemail.com"):
+                return "imap.gmail.com"
+            return f"imap.{dom}"
+    return ""
 
 
 async def wait_for_link(inbox: dict, timeout: float = 120.0,
-                        regex: str = r"https?://\S+") -> str | None:
-    """Pollt die Postfach-Meldungen und liefert den ersten Link aus der
-    juengsten Nachricht zurueck (oder None nach Ablauf von `timeout`)."""
+                        regex: str | None = None) -> str | None:
+    """Pollt die Postfach-Meldungen und liefert den ersten Link/Code aus der
+    juengsten Nachricht zurueck (oder None nach Ablauf von `timeout`).
+    `regex` kommt, wenn None, aus der Inbox-Konfiguration (confirm_regex)."""
+    if regex is None:
+        regex = inbox.get("regex") or r"https?://\S+"
     if inbox.get("provider") == "catchall":
         return await _imap_wait_for_link(inbox, timeout, regex)
     token = await _token(inbox)
@@ -122,19 +171,22 @@ async def _imap_wait_for_link(inbox: dict, timeout: float,
     user, pw = imap.get("user"), imap.get("password")
     if not (host and user and pw):
         raise MailboxError("catchall: IMAP-Zugang unvollstaendig in settings.json")
+    since_days = int(inbox.get("since_days", 1))
+    delete_after = bool(inbox.get("delete_after_fetch", False))
     end = time.monotonic() + timeout
-    # frische Meldungen merken (SUBJECT-/UID-basiert), damit keine verpasst werden
+    # frische Meldungen merken (UID-basiert), damit keine verpasst werden
     seen: set[str] = set()
     while time.monotonic() < end:
         try:
             mail = await asyncio.to_thread(_imap_connect, host, port, user, pw)
             try:
-                status, items = await asyncio.to_thread(mail.search, None, "ALL")
+                since = (date.today() - timedelta(days=since_days)).strftime("%d-%b-%Y")
+                status, items = await asyncio.to_thread(mail.search, None, f"SINCE {since}")
                 if status != "OK":
                     await asyncio.sleep(3.0)
                     continue
                 uids = items[0].split()
-                for uid in uids[-10:]:
+                for uid in uids[-15:]:
                     key = uid.decode()
                     if key in seen:
                         continue
@@ -149,6 +201,13 @@ async def _imap_wait_for_link(inbox: dict, timeout: float,
                                 m = re.search(regex, text)
                                 if m:
                                     seen.add(key)
+                                    if delete_after:
+                                        try:
+                                            await asyncio.to_thread(
+                                                mail.store, uid, "+FLAGS", r"\\Deleted")
+                                            await asyncio.to_thread(mail.expunge)
+                                        except Exception:
+                                            pass
                                     return m.group(1)
                     seen.add(key)
             finally:

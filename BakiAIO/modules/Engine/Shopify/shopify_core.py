@@ -30,6 +30,10 @@ from utilities.proxy import parse_proxy_lines  # noqa: E402
 ROOT = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent.parent
 while not (ROOT / "config").exists() and ROOT.parent != ROOT:
     ROOT = ROOT.parent
+# Programm-Wurzel (BakiAIO\ = 4 Ebenen ueber shopify_core.py). Dort liegt
+# settings.json im Skyridge-Layout, waehrend ROOT (Repo-Root) die Daten haelt.
+APP_ROOT = (Path(sys.executable).resolve().parent if getattr(sys, "frozen", False)
+            else Path(__file__).resolve().parents[3])
 CONSOLE = Console()
 LOG = logging.getLogger("toppsfarm")
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -50,6 +54,21 @@ def load_env() -> dict:
 
 
 ENV = load_env()
+
+
+def _imap_host_for(mastermails: list, user: str = "") -> str:
+    """Leitet den IMAP-Server aus einer Mastermail ab (gmail -> imap.gmail.com,
+    sonst imap.<domain>). Leer, wenn keine E-Mail-Adresse vorliegt."""
+    for m in mastermails or []:
+        mm = str((m or {}).get("mastermail") or "").strip()
+        if not mm and user:
+            mm = user
+        if "@" in mm:
+            dom = mm.rsplit("@", 1)[1].lower()
+            if dom in ("gmail.com", "googlemail.com"):
+                return "imap.gmail.com"
+            return f"imap.{dom}"
+    return ""
 
 
 @dataclass
@@ -81,28 +100,74 @@ class Settings:
         default_factory=lambda: ["www.pokemoncenter.com",
                                  "www.pokemoncenter.com/de-de",
                                  "www.pokemoncenter.com/en-gb"])
+    amazon: dict = field(default_factory=dict)   # Skyridge "Amazon" (noPhoneOnly, ...)
+    license: str = ""                             # Skyridge "license-key"
 
     @classmethod
     def load(cls) -> "Settings":
-        j = ROOT / "settings.json"
-        data = {}
-        if j.exists():
-            try:
-                data = {k: v for k, v in json.loads(j.read_text(encoding="utf-8")).items()
-                        if k in cls.__dataclass_fields__}
-            except Exception:
-                data = {}
-        p = ROOT / "config" / "settings.yaml"
-        if not data and p.exists():
-            try:
-                data = dict(yaml.safe_load(p.read_text(encoding="utf-8")) or {})
-            except Exception:
-                data = {}
         s = cls()
-        for k, v in data.items():
-            if hasattr(s, k):
-                setattr(s, k, v)
+        raw = {}
+        for base in (APP_ROOT, ROOT):
+            j = base / "settings.json"
+            if j.exists():
+                try:
+                    raw = json.loads(j.read_text(encoding="utf-8"))
+                    break
+                except Exception:
+                    continue
+        # Toppsfarm-Felder direkt uebernehmen (falls im selben File vorhanden)
+        for k in cls.__dataclass_fields__:
+            if k in raw and hasattr(s, k):
+                setattr(s, k, raw[k])
+        # Skyridge-Schema (settingsbeispiel.txt) in die Dataclass-Felder mappen;
+        # danach, damit die Skyridge-Werte (captcha/geo/sms/mail/amazon) gewinnen
+        s._map_skyridge(raw)
+        # Migration: config/settings.yaml als Fallback fuer noch leere Felder
+        p = ROOT / "config" / "settings.yaml"
+        if p.exists():
+            try:
+                y = dict(yaml.safe_load(p.read_text(encoding="utf-8")) or {})
+            except Exception:
+                y = {}
+            for k in cls.__dataclass_fields__:
+                if k in y and k not in raw and hasattr(s, k):
+                    setattr(s, k, y[k])
         return s
+
+    def _map_skyridge(self, raw: dict):
+        """Uebertraegt die Skyridge-Schluessel (Mastermails, CaptchaProvider,
+        GeoCoder, SMSProvider, OAuthForwarder, Amazon, discord-webhook) in die
+        Dataclass-Felder, damit bestehende cfg.-Zugriffe weiter funktionieren."""
+        mail = self.mail
+        if raw.get("Mastermails"):
+            mms = [m for m in raw["Mastermails"] if isinstance(m, dict)]
+            if mms:
+                mail["provider"] = "catchall"
+                mail["mastermails"] = mms
+                mail.setdefault("imap_host", _imap_host_for(mms))
+        if raw.get("OAuthForwarder"):
+            of = raw["OAuthForwarder"] if isinstance(raw["OAuthForwarder"], dict) else {}
+            mail["oauth_forwarder"] = of
+            if of.get("target_email"):
+                mail["provider"] = "catchall"
+        if raw.get("CaptchaProvider") and isinstance(raw["CaptchaProvider"], dict):
+            cp = raw["CaptchaProvider"]
+            active = next((k for k, v in cp.items() if v), "NoneCap")
+            self.captcha = {**self.captcha, "skyridge_provider": active,
+                            "keys": dict(cp)}
+        if raw.get("GeoCoder") and isinstance(raw["GeoCoder"], dict):
+            g = raw["GeoCoder"]
+            self.geo = {**self.geo, "mapbox": g.get("mapbox", ""),
+                        "position_1": g.get("position_1", ""),
+                        "position_2": g.get("position_2", "")}
+        if raw.get("SMSProvider") and isinstance(raw["SMSProvider"], dict):
+            self.sms = {**self.sms, "skyridge": raw["SMSProvider"]}
+        if raw.get("Amazon") and isinstance(raw["Amazon"], dict):
+            self.amazon = raw["Amazon"]
+        if raw.get("discord-webhook"):
+            self.notify = {**self.notify, "discord_webhook": raw["discord-webhook"]}
+        if raw.get("license-key"):
+            self.license = str(raw["license-key"])
 
     def path(self, rel: str) -> Path:
         p = ROOT / rel

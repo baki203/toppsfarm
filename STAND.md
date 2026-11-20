@@ -1,6 +1,23 @@
 # STAND
 Stand 2026-11-20, ARBEITSWEISE (8 Punkte) + 4 QUALITY-Luecken. Deutsch. Je Punkt: Test + STAND.md + commit + push.
 
+## Stand Punkte
+25 AGENTS+SETTINGS+OTP-IMAP: erledigt. AGENTS.md ersetzt (strikte Ausgabe: keine Vorrede,
+   max 1 Zeile/Werkzeugruf, Ende 'fertig'+Tabelle(5)+Commit-Hash, STAND.md einziger Stand,
+   nie fragen, echter Test je Schritt). settings.json auf exaktes Skyridge-Schema (license-key,
+   discord-webhook, deviceRotation, remoteControl, CaptchaProvider, SMSProvider, GeoCoder,
+   Mastermails, OAuthForwarder, SkyridgeInbox, Ejoin, Amazon, AycdInbox) + settings.example.json
+   (committet, leer). Settings.load() mappt Skyridge->Dataclass (Mastermails->mail.catchall,
+   CaptchaProvider->captcha, GeoCoder->geo, SMSProvider->sms, Amazon->amazon), liest settings.json
+   zuerst aus APP_ROOT (BakiAIO\), Toppsfarm-Felder bleiben kompatibel. mailbox.py catchall jetzt
+   Mastermails-basiert (round-robin, imap_host-Ableitung gmail->imap.gmail.com, since_days-Fenster,
+   confirm_regex fuer Links+Codes, delete_after_fetch, OAuthForwarder als 2. Quelle, klarer Fehler
+   'IMAP nicht konfiguriert'). AmazonAIO Gen/Reset nutzen catchall non-PVA ohne Telefon. Getestet:
+   compileall 0, Settings-Mapping (hosts/captcha/geo/amazon/proxy ok), Mailbox 3 Faelle ok,
+   Topps-Selftest 4/4 200, baki+Amazon import ok. BLOCKER: ohne echte Mastermails in settings.json
+   bleibt OTP blockiert (imap) - Mastermails aus Sicherheitsgruenden nicht kopiert, User traegt sie
+   in BakiAIO/settings.json ein (gitignored).
+
 ## BLOCKER
 - Skyridge-GitBook auth-geschuetzt (SPA nur JS-Shell, Content-API 403, kein Wayback-Mirror). Erkenntnisse stattdessen aus lokaler settings.json + crashlog.log (PyInstaller-Tracebacks) + PepperScripts-Doku.
 

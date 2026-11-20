@@ -16,4 +16,5 @@ proxies/proxies.txt
 proxies.txt
 
 BakiAIO/accounts/*/*.txt
+BakiAIO/settings.json
 
