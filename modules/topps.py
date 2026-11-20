@@ -138,11 +138,22 @@ class Profile:
         }
 
 
+def _row_to_profile(row: dict) -> Profile:
+    """Akzeptiert das toppsfarm-Format (address1) und das Identitaets-Format
+    (street + house_no). Unbekannte oder leere Werte werden uebersprungen."""
+    keep = {k: v for k, v in row.items() if k in Profile.__dataclass_fields__}
+    if not keep.get("address1"):
+        st = str(row.get("address1") or row.get("street") or row.get("address") or "").strip()
+        hn = str(row.get("house_no") or "").strip()
+        keep["address1"] = f"{st} {hn}".strip() if st else ""
+    return Profile(**keep)
+
+
 def load_profiles() -> list:
     p = ROOT / "config" / "profiles.yaml"
     if not p.exists():
         return []
-    return [Profile(**{k: v for k, v in row.items() if k in Profile.__dataclass_fields__})
+    return [_row_to_profile(row)
             for row in (yaml.safe_load(p.read_text(encoding="utf-8")) or [])]
 
 
