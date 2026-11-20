@@ -343,3 +343,27 @@ ohne Query | https://de.topps.com/products.json | status=403 | http_version=3 | 
 mit ?limit=250 | https://de.topps.com/products.json?limit=250 | status=403 | http_version=3 | text/html; charset=UTF-8 | server=cloudflare | 5683 B | title=Attention Required! | Cloudflare | body[:80]='<!DOCTYPE html>\n<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <!'
 ```
 Fehler: Statuscode 403 bei beiden Varianten, Body ist jeweils die Cloudflare-Blockseite `Attention Required! | Cloudflare` (5683 B HTML), kein products-JSON. Gleiches Ergebnis wie Matrix 4 aus Schritt 4: der Query-Parameter ist nicht die Ursache, `/products.json` ist auf de.topps.com pauschal gesperrt.
+
+## Schritt 12 - Sitemap und /products/<handle>.js (2026-11-20)
+Ergebnis: `/sitemap.xml` 200, `/sitemap_products_1.xml` 404, `/products/<handle>.js` 200, aber HTML statt JSON.
+- Vorbedingung "falls weiter 403" trifft zu (Schritt 11: `/products.json` 403).
+- Je Pfad genau eine Anfrage auf de.topps.com (ohne Proxy), curl_cffi 0.17.0, `impersonate=chrome`, Header nur `accept` und `accept-language`.
+- `<handle>` = erster Eintrag aus `/products/sitemap/0.xml` (dafuer eine zusaetzliche Anfrage, da `/sitemap_products_1.xml` nicht existiert): `2024-topps-chrome®-formula-1®-qualifying-lap-box`.
+- Kein Code geaendert, die Exe wurde nicht neu gebaut.
+
+Ausgabe woertlich (die `®` im Handle zeigt die Konsole als `�`):
+```
+curl_cffi 0.17.0
+/sitemap.xml | status=200 | application/xml | server=cloudflare | 61392 B | title=None | body[:80]='<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/sc'
+/sitemap_products_1.xml | status=404 | text/html; charset=utf-8 | server=cloudflare | 238108 B | title=None | body[:80]='<!DOCTYPE html><html lang="de"><head><meta charSet="utf-8"/><link rel="preconnec'
+/products/sitemap/0.xml | status=200 | application/xml | server=cloudflare | 36646 B | title=None | body[:80]='<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/sc'
+handle: 2024-topps-chrome�-formula-1�-qualifying-lap-box
+/products/<handle>.js | status=200 | text/html; charset=utf-8 | server=cloudflare | 240250 B | title=2024 Topps Chrome� Formula 1� - Qualifying Lap Box | body[:80]='<!DOCTYPE html><html lang="de"><head><meta charSet="utf-8"/><link rel="preconnec'
+json: nein (JSONDecodeError)
+```
+Fehler:
+- `/sitemap_products_1.xml`: Statuscode 404, Body ist die HTML-404-Seite des Next.js-Frontends (238108 B), keine Sitemap.
+- `/products/<handle>.js`: Statuscode 200, aber `content-type: text/html`, Body ist die HTML-Produktseite; `r.json()` scheitert mit `JSONDecodeError`. Der Shopify-Endpunkt `.js` existiert auf de.topps.com nicht.
+- Kein 403 auf diesen drei Pfaden. Gleiches Ergebnis wie Matrix 5 aus Schritt 4.
+
+Folge fuer Schritt 13: die dort genannten Quellen (`sitemap_products_1.xml`, `/products/<handle>.js`) gibt es nicht. Die Produkt-Sitemap liegt unter `/products/sitemap.xml` -> `/products/sitemap/<n>.xml`, Variant-IDs stehen im HTML von `/products/<handle>` (siehe Matrix 5/6).

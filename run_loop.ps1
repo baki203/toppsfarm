@@ -1,6 +1,6 @@
 ﻿$repo = "C:\Users\sargo\Downloads\toppsfarm"
 Set-Location $repo
-$claude='$env:USERPROFILE\.local\bin\claude.exe'
+$claude="C:\Users\sargo\.local\bin\claude.exe"
 while ($true) {
   $next = (Get-Content ORDERS.md) | Where-Object { $_ -match '^- \[ \] \d+ \|' } | Select-Object -First 1
   if (-not $next) { Write-Host "Warteschlange leer."; break }
@@ -12,3 +12,4 @@ while ($true) {
   git push origin master
   Start-Sleep 60
 }
+
