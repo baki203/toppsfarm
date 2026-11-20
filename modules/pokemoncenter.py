@@ -6,8 +6,8 @@ import asyncio
 import random
 from pathlib import Path
 
-from modules.topps import (State, Notifier, Solver, Settings, load_env,
-                           session, base_headers, headers, queued)
+from modules.shopify_core import (State, Notifier, Solver, Settings, load_env,
+                                  session, base_headers, headers, queued)
 
 ROOT = Path(__file__).resolve().parent.parent
 

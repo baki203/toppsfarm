@@ -7,7 +7,7 @@ from pathlib import Path
 
 from curl_cffi.requests import AsyncSession
 
-from modules.topps import Settings, load_env, session, headers
+from modules.shopify_core import Settings, load_env, session, headers
 
 ROOT = Path(__file__).resolve().parent.parent
 ENV = load_env()
@@ -28,7 +28,7 @@ async def test_proxy(proxy: str, timeout: int = 15) -> dict:
 
 async def test_proxies(module: str = "topps") -> list[dict]:
     """Testet alle Eintraege aus proxies/<module>/ und proxies/*.txt."""
-    from modules.topps import proxy_files_for, _parse_proxy_lines
+    from modules.shopify_core import proxy_files_for, _parse_proxy_lines
     files = proxy_files_for(module)
     items: list[str] = []
     seen: set[str] = set()
@@ -77,7 +77,7 @@ async def captcha_balance() -> dict:
 
 async def test_webhook(url: str) -> dict:
     """Sendet eine Testnachricht an einen Discord-Webhook."""
-    from modules.topps import Notifier
+    from modules.shopify_core import Notifier
     n = Notifier(url)
     await n.send("Toolbox-Test", "info", {"status": "ok"})
     return {"ok": True, "note": "gesendet"}
