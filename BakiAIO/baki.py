@@ -99,6 +99,11 @@ def _shopify():
     return ShopifyGenericModule()
 
 
+def _drawentry():
+    from modules.Generators.Nike.modules.DrawEntry.DrawEntryModule import DrawEntryModule
+    return DrawEntryModule()
+
+
 # Menueplatz -> (Text, Fabrik fuer das Modul). Freie Plaetze fehlen hier.
 MODULES = {
     1: ("Topps EU", _topps),
@@ -113,6 +118,7 @@ MODULES = {
     10: ("Smyths Toys", _smyths),
     11: ("Shopify generisch", _shopify),
     12: ("Toolbox", _toolbox),
+    13: ("Nike Draw-Entry (LEO/DAN)", _drawentry),
 }
 
 # Hardcode-Fallback 1: ansi_shadow, fest eingetragen (falls pyfiglet oder der Font fehlt).

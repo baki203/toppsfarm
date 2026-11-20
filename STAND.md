@@ -113,9 +113,23 @@ Stand 2026-11-20, ARBEITSWEISE (8 Punkte) + 4 QUALITY-Luecken. Deutsch. Je Punkt
    PSN-Checkout-Dryrun ok + Login navigiert zur Sony-Seite (Test-Credentials). compileall sauber.
    Committet 2013e6e.
 
+## Stand Punkte
+18 NIKE DRAW-ENTRY (LEO/DAN): erledigt (Phase C). Neu modules/Generators/Nike/modules/DrawEntry/
+   DrawEntryModule.py + DrawEntryTask.py. Klasse DrawEntry: Login (persistente Session
+   var/browser-nike-<email>), Produktseite laden, Drop-Zeit parsen (_parse_drop_time: benannte Felder
+   launchDate/goLiveTime/productLaunchDate/productLaunchTime + JSON-LD/meta, Fallback naechste
+   zukuenftige ISO-Zeit aus __NEXT_DATA__/Text), optional warten bis Entry-Zeit (--at), Groesse
+   waehlen, Entry abgeben (Billing==Shipping, BPE vermeiden). Konten aus accounts/Nike/*.txt.
+   baki.py Menue-Punkt 13 'Nike Draw-Entry (LEO/DAN)'. Getestet: compileall sauber, Menue-Punkt 13
+   laedt, _parse_drop_time alle Faelle (named/fallback/past/none), live Produktseite ueber Proxy
+   laedt (450KB), Launch-Links von /de/launch extrahiert. BLOCKER: threads-/productfeed-API
+   (api.nike.com/.../threads) ueber Proxy 404 (Akamai) - Drop-Zeit daher aus HTML/__NEXT_DATA__;
+   echter Entry braucht aktiven Launch + echte Nike-Credentials (accounts/*.txt sind generator-artefakte).
+
 ## WEITER
-Naechste Phase laut VORGEHEN.txt: B Amazon-Generator (non-PVA, mehrere Catch-All-Domains,
-ADDRESS-Modus in 2. Session, Selftest). Offen: echter PSN-Anmeldetest braucht echte Credentials;
-Amazon ACO/Reset/Farmer/Invites brauchen echte eingeloggte Browser-Session (Session Manager);
-products.json/de.topps Storefront-GraphQL ueber Proxy weiterhin 403 (Cloudflare) - Storefront-Weg
-fuer Checkout-Link funktioniert; volle 1000er-Proxy-Vorpruefung (~40 min) nur in Background/Chunks.
+Naechste Phase laut VORGEHEN.txt: D Topps products.json 200 (Cloudflare-403 loesen: Session im
+Browser oeffnen, Cookies extrahieren, an curl_cffi uebergeben) + D Shopify Guest-Checkout.
+Offen: echter PSN-Anmeldetest braucht echte Credentials; Amazon ACO/Reset/Farmer/Invites brauchen
+echte eingeloggte Browser-Session (Session Manager); de.topps products.json/Storefront-GraphQL
+ueber Proxy 403 (Cloudflare) - Storefront-Weg fuer Checkout-Link funktioniert; volle 1000er-
+Proxy-Vorpruefung (~40 min) nur in Background/Chunks.
