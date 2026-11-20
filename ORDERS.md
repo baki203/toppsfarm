@@ -1,23 +1,6 @@
-- [x] 4 | selftest (haengt an Cloudflare 403)
-- [x] 5 | cart-Flow (haengt an 4)
-- [x] 6 | hCaptcha (Code geprueft)
-- [x] 7 | release.zip (haengt an 4)
-- [x] 8 | headers() auf Minimum reduzieren: nur accept und accept-language setzen, alle anderen Header entfernen und dem impersonate ueberlassen. Test gegen https://de.topps.com/products.json ohne Query, Statuscode und Body-Anfang nach STATUS.md.
-- [x] 9 | impersonate durchprobieren: chrome, chrome131, chrome124, safari17_0, firefox133. Je Variante Statuscode nach STATUS.md, nicht installierte ueberspringen.
-- [x] 10 | HTTP/1.1 erzwingen statt h2, gegen de.topps.com/products.json, Statuscode nach STATUS.md.
-- [x] 11 | Vergleich mit und ohne ?limit=250 auf products.json, Statuscodes nach STATUS.md.
-- [x] 12 | Falls weiter 403: /sitemap.xml, /sitemap_products_1.xml, /products/<handle>.js testen, Statuscodes nach STATUS.md.
-- [x] 13 | Falls Sitemap geht: Monitor auf Sitemap umbauen. Neue Handles aus sitemap_products_1.xml diffen, Variant-ID aus /products/<handle>.js ziehen, products.json als optionalen Zweitweg behalten.
-- [x] 14 | Storefront-API als Zweitweg: Access-Token aus den Theme-JS-Bundles von de.topps.com extrahieren, GraphQL-products-Query testen, Statuscode nach STATUS.md.
-- [ ] 15 | Umbau auf Modulsystem Baki AIO. Ordner core/ und modules/ anlegen, baki.py mit Banner (pyfiglet ansi_shadow, Fallback Hardcode-ASCII) und Menue 1-14. Modul-Interface modules/base.py mit run(). Bestehenden Topps-Code nach modules/topps.py verschieben, funktional unveraendert. Exe umbenennen auf BakiAIO, START.bat auf baki.py umstellen.
-- [ ] 16 | core/identity.py: Namenspool DE, Strassen-PLZ-Ort-Tabelle, Vorwahl-Mapping, DOB 22-45, E-Mail-Ableitung vorname.nachnameNN. YAML-Ausgabe. PLZ muss zur Stadt passen, Vorwahl zur Stadt.
-- [ ] 17 | core/fingerprint.py: Seed pro Profil, Canvas/WebGL/Audio-Noise, Viewport-Pool, Timezone und Locale aus IP-Land.
-- [ ] 18 | core/human.py: Tippen mit 60-180ms Jitter plus Korrekturen, Bezier-Maus, Scroll, Hover, Pausen, pro Profil randomisierte Grundgeschwindigkeit.
-- [ ] 19 | core/browser.py: persistenter Chromium-Context pro Konto, headless=new, ohne enable-automation, Fingerprint- und Human-Layer aktiv.
-- [ ] 20 | core/mailbox.py: mail.tm API, Postfach anlegen, Verifikationsmail pollen und Link extrahieren.
-- [ ] 21 | modules/nike_gen.py: Registrierung ueber Browser, Identitaet + Fingerprint + sticky Proxy, Throttle 1 pro 5 Min pro IP, Ergebnis in profiles.yaml.
-- [ ] 22 | modules/amazon_gen.py: amazon.de, DE-Wohn-IP Pflicht, Adresse setzen, kein 1-Click, Warmup nach 24h.
-- [ ] 23 | modules/pokemoncenter.py: Monitor, Queue-it, hCaptcha, Checkout, Cookie-Handoff aus core/browser.py.
-- [ ] 24 | modules/riftbound_gen.py nach Muster von Nike.
-- [ ] 25 | Toolboxen: Proxy-Test, Captcha-Balance, Webhook-Test, Session-Handoff.
-- [ ] 26 | release.zip mit BakiAIO.exe, config, START.bat, README.
+﻿- [x] 15 | Umbau auf Modulsystem (ersetzt durch 15a-15e)
+- [x] 15a | Ordner core/ und modules/ anlegen, in beiden je eine leere __init__.py. Committen und pushen.
+- [ ] 15b | modules/base.py mit Klasse BaseModule und Methode run(self). Nur das, sonst nichts.
+- [ ] 15c | baki.py: Banner per pyfiglet Font ansi_shadow mit Hardcode-Fallback, darunter Menue 1-14 und 0, Auswahl per input. Noch ohne Modul-Logik, nur Anzeige.
+- [ ] 15d | toppsfarm.py nach modules/topps.py verschieben, als Klasse ToppsModule(BaseModule) mit run(). baki.py Menuepunkt 1 ruft sie auf. Alter Dateiname bleibt als duenne Weiterleitung.
+- [ ] 15e | Exe umbenennen auf BakiAIO, START.bat auf baki.py umstellen, bauen, Menue einmal testen.

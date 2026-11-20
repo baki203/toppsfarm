@@ -470,3 +470,50 @@ Fehler / offen:
 - Faellt die Startseite aus (z. B. 429 wie in Schritt 13), kann `storefront_cfg()` bei einem frisch gestarteten Prozess keinen Token lesen (`status 0`); ein einmal gelesener Token bleibt bis zum Prozessende im Speicher.
 - Die erste Fassung des Testskripts meldete `token im HTML: nein`: Fehler im Suchmuster des Skripts (Escaping im Next.js-Datenblock), nicht im Programm. Zweiter Lauf mit dem Token-Wert als Suchtext, Ausgabe oben.
 - Nur de.topps.com getestet; es/fr/it zuletzt im Selftest von Schritt 13.
+
+## Schritt 15a - Ordner core/ und modules/ mit leerer __init__.py (2026-11-20)
+Ergebnis: erledigt.
+- `core/__init__.py` und `modules/__init__.py` liegen vor, beide 0 Byte.
+- Beide Ordner und beide Dateien gab es schon aus dem frueheren Anlauf zu Schritt 15 (unversioniert), die Dateien waren aber nicht leer. Sie wurden geleert. Vorheriger Inhalt, damit nichts verloren geht:
+  - `core/__init__.py` (56 Byte): `"""Baki AIO - gemeinsame Bausteine fuer alle Module."""`
+  - `modules/__init__.py` (489 Byte):
+    ```python
+    """Baki AIO - Module. Jedes Modul stellt eine Klasse mit run() bereit (siehe base.py)."""
+    from __future__ import annotations
+
+
+    def load(key: str):
+        """Liefert die Modul-Instanz zum Kurznamen oder None.
+
+        Die Importe stehen in den Zweigen, damit das Menue sofort erscheint und
+        ein Modul erst beim Start seine Abhaengigkeiten laedt.
+        """
+        if key == "topps":
+            from modules.topps_module import ToppsModule
+            return ToppsModule()
+        return None
+
+
+    KEYS = ["topps"]
+    ```
+- Commit enthaelt nur: `core/__init__.py`, `modules/__init__.py`, `STATUS.md`, `ORDERS.md`. Alles andere aus dem frueheren Anlauf bleibt uncommittet im Arbeitsverzeichnis (gehoert zu 15b-15e): `baki.py`, `modules/base.py`, `modules/topps_module.py`, Verschiebung `toppsfarm.py -> modules/topps.py`, Aenderungen an `README.md`, `START.bat`, `config/settings.yaml`, `requirements.txt`, `run_loop.ps1`.
+
+Ausgabe woertlich:
+```
+0 core/__init__.py
+0 modules/__init__.py
+import core, modules: ok
+```
+
+Fehler / offen:
+- Das uncommittete `baki.py` aus dem frueheren Anlauf laeuft mit der leeren `modules/__init__.py` nicht mehr (es nutzt `modules.KEYS` und `modules.load`). `echo 0 | python baki.py`, woertlich:
+  ```
+    File "C:\Users\sargo\Downloads\toppsfarm\baki.py", line 68, in menu
+      entries = menu_entries()
+    File "C:\Users\sargo\Downloads\toppsfarm\baki.py", line 41, in menu_entries
+      for key in modules.KEYS:
+                 ^^^^^^^^^^^^
+  AttributeError: module 'modules' has no attribute 'KEYS'
+  ```
+  Nicht behoben, weil `baki.py` zu 15c/15d gehoert.
+- Im Arbeitsverzeichnis gibt es `toppsfarm.py` nicht mehr (Verschiebung nach `modules/topps.py` ist vorgemerkt, nicht committet). Im Repo auf origin liegt `toppsfarm.py` weiter unveraendert.
