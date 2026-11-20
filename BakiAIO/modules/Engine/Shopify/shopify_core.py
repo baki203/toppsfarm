@@ -77,6 +77,10 @@ class Settings:
     proxy: dict = field(default_factory=dict)
     state_db: str = "var/state.sqlite"
     log_dir: str = "var/logs"
+    pokemon_hosts: list = field(
+        default_factory=lambda: ["www.pokemoncenter.com",
+                                 "www.pokemoncenter.com/de-de",
+                                 "www.pokemoncenter.com/en-gb"])
 
     @classmethod
     def load(cls) -> "Settings":

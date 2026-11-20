@@ -19,7 +19,8 @@ class PokemonMonitor:
 
     def __init__(self, cfg: Settings, state: State, notifier: Notifier, hosts: list[str]):
         self.cfg, self.state, self.notifier = cfg, state, notifier
-        self.hosts = hosts or ["www.pokemoncenter.com"]
+        self.hosts = hosts or list(getattr(cfg, "pokemon_hosts", None)
+                                   or ["www.pokemoncenter.com"])
         self.stop = asyncio.Event()
         self._seen: dict[str, set] = {}
 
@@ -151,8 +152,11 @@ class PokemonCenterModule(BaseModule):
             if wahl == "0":
                 return 0
             if wahl == "1":
-                hosts = [h.strip() for h in input(" Hosts (kommagetrennt) [www.pokemoncenter.com]: ")
-                         .split(",") if h.strip()] or ["www.pokemoncenter.com"]
+                default_hosts = " ".join(getattr(cfg, "pokemon_hosts", None)
+                                         or ["www.pokemoncenter.com"])
+                hosts = [h.strip() for h in input(f" Hosts (kommagetrennt) [{default_hosts}]: ")
+                         .split(",") if h.strip()] or (getattr(cfg, "pokemon_hosts", None)
+                                                       or ["www.pokemoncenter.com"])
                 try:
                     asyncio.run(cmd_monitor(cfg, state, notifier, hosts))
                 except KeyboardInterrupt:

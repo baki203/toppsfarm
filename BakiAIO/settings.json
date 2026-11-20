@@ -1,5 +1,10 @@
 {
-  "hosts": ["de.topps.com", "es.topps.com", "fr.topps.com", "it.topps.com"],
+  "hosts": [
+    "de.topps.com",
+    "es.topps.com",
+    "fr.topps.com",
+    "it.topps.com"
+  ],
   "ship_country": "DE",
   "impersonate": "chrome",
   "locale": "de-DE",
@@ -7,7 +12,10 @@
   "concurrency_browser": 8,
   "poll_interval_s": 2.5,
   "poll_jitter_s": 0.9,
-  "monitor_sources": ["sitemap", "storefront"],
+  "monitor_sources": [
+    "sitemap",
+    "storefront"
+  ],
   "timeout_s": 25,
   "max_retries": 3,
   "retry_backoff_s": 1.5,
@@ -41,7 +49,9 @@
     "provider": "5sim",
     "country": "RU",
     "only_on_request": true,
-    "sites": ["nike"],
+    "sites": [
+      "nike"
+    ],
     "service": ""
   },
   "geo": {
@@ -54,5 +64,10 @@
     "check_timeout_s": 15
   },
   "state_db": "var/state.sqlite",
-  "log_dir": "var/logs"
+  "log_dir": "var/logs",
+  "pokemon_hosts": [
+    "www.pokemoncenter.com",
+    "www.pokemoncenter.com/de-de",
+    "www.pokemoncenter.com/en-gb"
+  ]
 }
