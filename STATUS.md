@@ -198,3 +198,10 @@ http1.1 chrome /products.json | 403 | http=2 | text/html; charset=UTF-8 | 5683 B
 h2 chrome /products.json (Vergleich) | 403 | http=3 | text/html; charset=UTF-8 | 5683 B | title=Attention Required! | Cloudflare
 ```
 Ergebnis: 403 mit HTTP/1.1 (http=2) genauso wie mit h2 (http=3).
+
+### Matrix 4 - mit und ohne ?limit=250
+```
+ohne Query /products.json | 403 | http=3 | text/html; charset=UTF-8 | 5683 B | title=Attention Required! | Cloudflare
+mit Query /products.json?limit=250 | 403 | http=3 | text/html; charset=UTF-8 | 5683 B | title=Attention Required! | Cloudflare
+```
+Ergebnis: kein Unterschied, beide 403.
