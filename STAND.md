@@ -143,10 +143,17 @@ Stand 2026-11-20, ARBEITSWEISE (8 Punkte) + 4 QUALITY-Luecken. Deutsch. Je Punkt
    Smyths setzen _last_status; MediaMarkt 200 items, Saturn 200 items, Smyths 200 status.
    compileall sauber. Committet.
 
+## Stand Punkte
+20 BUILD + RELEASE: erledigt (Phase G). BakiAIO.spec (PyInstaller 6.22.3, collect_all
+   curl_cffi/playwright/pyfiglet) rebuilt (--noconfirm --clean, exit 0), dist/BakiAIO.exe
+   62.3 MB. EXE-Selftest: Menue zeigt alle 13 Slots (13 Nike Draw-Entry, 14 frei), Topps-Modul
+   laedt. release.zip neu gebaut (61.7 MB, 1 Entry BakiAIO.exe, gitignored). Topps-Selftest
+   aus Quelle 4/4 200. Git-Tag fuer Release angelegt.
+
 ## WEITER
-Naechste Phase laut VORGEHEN.txt: G release.zip bauen + Release-Tag pushen.
 Offen: echter PSN-Anmeldetest braucht echte Credentials; Amazon ACO/Reset/Farmer/Invites
 brauchen echte eingeloggte Browser-Session (Session Manager); de.topps products.json und
 PokemonCenter ueber Proxy-IP 403 (Cloudflare-Proxy-Reputations-Blocker, Sitemap/Storefront
 funktionieren); voller Nike-Draw-Entry braucht aktiven Launch + echte Credentials; volle
-1000er-Proxy-Vorpruefung (~40 min) nur in Background/Chunks.
+1000er-Proxy-Vorpruefung (~40 min) nur in Background/Chunks. Danach: weitere Discord-Themen
+laut KNOWLEDGE (Shopify Preload, Amazon-Invite-Fenster 21-22U) je nach Bedarf.
