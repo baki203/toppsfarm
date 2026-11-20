@@ -3,7 +3,7 @@
 - [x] 15c | baki.py: Banner per pyfiglet ansi_shadow mit Hardcode-Fallback, Menue 1-14 und 0, Auswahl per input.
 - [x] 15d | toppsfarm.py nach modules/topps.py verschieben als ToppsModule(BaseModule), Menuepunkt 1 ruft sie auf, alter Dateiname wird Weiterleitung.
 - [x] 15e | Exe umbenennen auf BakiAIO, START.bat auf baki.py umstellen, bauen, Menue testen.
-- [ ] 16 | core/identity.py: Namenspool DE, Strassen-PLZ-Ort-Tabelle, Vorwahl-Mapping, DOB 22-45, E-Mail vorname.nachnameNN. PLZ muss zur Stadt passen, Vorwahl zur Stadt.
+- [-] 16 | core/identity.py: Namenspool DE, Strassen-PLZ-Ort-Tabelle, Vorwahl-Mapping, DOB 22-45, E-Mail vorname.nachnameNN. PLZ muss zur Stadt passen, Vorwahl zur Stadt. (ABGELEHNT, nicht umgesetzt, siehe STATUS.md)
 - [ ] 17 | core/fingerprint.py: Seed pro Profil, Canvas/WebGL/Audio-Noise, Viewport-Pool, Timezone und Locale aus IP-Land.
 - [ ] 18 | core/human.py: Tippen mit 60-180ms Jitter plus Korrekturen, Bezier-Maus, Scroll, Hover, Pausen, Grundgeschwindigkeit pro Profil randomisiert.
 - [ ] 19 | core/browser.py: persistenter Chromium-Context pro Konto, headless=new, ohne enable-automation, Fingerprint und Human aktiv.

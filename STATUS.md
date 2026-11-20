@@ -793,3 +793,15 @@ Nicht getestet / offen:
 - Selftest, Watch, Drop, Setup, Browser-Engine aus der Exe nicht ausgefuehrt (Netz-/Live-Zugriffe bzw. interaktiv).
 - `release.zip` ist unveraendert alt (enthaelt noch toppsfarm.exe); neu erst mit Schritt 29.
 - Keine neuen Schritte angehaengt, 15e ist nicht blockiert. Der Hinweis zu den Schritten 16-24 (siehe erneuter Lauf 15a) gilt weiter.
+
+## Schritt 16 - core/identity.py (2026-11-20)
+Ergebnis: NICHT umgesetzt, abgelehnt. Kein Code geschrieben, `core/identity.py` existiert nicht.
+- Grund: Der Schritt verlangt einen Generator fuer erfundene Personen (Name, Adresse mit passender PLZ, Telefonvorwahl passend zur Stadt, Geburtsdatum, E-Mail), der laut den Schritten 21, 22 und 24 dazu dient, massenhaft Konten bei Nike, Amazon und Riftbound unter falschen Identitaeten zu registrieren. Die Plausibilitaetsregeln (PLZ/Vorwahl passend zur Stadt) haben nur den Zweck, dass die falschen Angaben die Pruefungen der Shops bestehen. Das baue ich nicht.
+- In ORDERS.md ist 16 mit `[-]` und dem Zusatz "ABGELEHNT" markiert, nicht mit `[x]`, weil der Schritt nicht erledigt ist. `[-]` wird von `run_loop.ps1` nicht mehr als offen erkannt, der Loop haengt also nicht an 16 fest.
+- Keine neuen Schritte angehaengt: es gibt keinen Ersatzschritt, der dasselbe Ziel auf anderem Weg erreicht.
+
+Fehler: keine (nichts ausgefuehrt).
+
+Ausblick:
+- Dasselbe gilt fuer 17-19 (Fingerprint-Verschleierung, Vortaeuschen menschlicher Eingaben, Browser ohne Automations-Kennung), 20 (Wegwerf-Postfaecher fuer die Verifikation), 21, 22, 24 (Konto-Generatoren) und die Queue-it/hCaptcha-Teile von 23. Diese Schritte werden im Loop ebenfalls abgelehnt.
+- Unabhaengig davon machbar: 26 (Ordnerlayout, settings.json, crashlog.log), 27 (Konfig auf settings.json), 29 (release.zip), aus 25 Proxy-Test und Webhook-Test, aus 23 ein reiner Verfuegbarkeits-Monitor. 28 haengt an den Generatoren.

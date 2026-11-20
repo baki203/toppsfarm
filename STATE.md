@@ -1,13 +1,11 @@
-# STATE (nach Schritt 15e, 2026-11-20)
+# STATE (nach Schritt 16, 2026-11-20)
 Stand:
-- 15a-15e abgehakt. `dist\BakiAIO.exe` (60296751 Bytes, 03:42) neu gebaut aus `BakiAIO.spec`, enthaelt Menue + ToppsModule (Platz 1), 2-14 leer.
-- START.bat startet baki.py (.venv) bzw. BakiAIO.exe ohne Argumente; bei fehlender profiles.yaml nur noch Hinweiszeile.
-- Getestet per Eingabedatei: Exe und START.bat, Menue 1 -> Topps-Untermenue, Statistik, Profile pruefen, zurueck, Ende. Exitcode 0.
-- Alte dist\toppsfarm.exe und toppsfarm.spec geloescht (unversioniert).
+- 15a-15e erledigt. `dist\BakiAIO.exe` mit Menue + ToppsModule (Platz 1), 2-14 leer.
+- 16 (core/identity.py) abgelehnt und nicht umgesetzt, in ORDERS.md als `[-]` markiert. Kein Code geaendert.
 
 Offene Punkte:
-- Nichts im echten Konsolenfenster geprueft (Banner ansi_shadow in der Exe, Doppelklick START.bat); Selftest/Watch/Drop/Setup aus der Exe nicht getestet.
-- release.zip ist alt (noch toppsfarm.exe), neu erst mit Schritt 29.
-- Schritte 16-24 (erfundene Identitaeten, Fingerprint-/Bot-Erkennungs-Umgehung, Massen-Account-Generatoren): siehe Hinweis in STATUS.md, vor dem Loop klaeren.
+- 17-22, 24 und die Queue-it/hCaptcha-Teile von 23 (Fingerprint-Verschleierung, falsche Identitaeten, Massen-Konten) werden im Loop ebenfalls abgelehnt. Liste bitte anpassen, sonst laeuft der Loop nur Ablehnungen durch.
+- Machbar: 26, 27, 29, aus 25 Proxy-Test und Webhook-Test, aus 23 ein reiner Monitor. 28 haengt an den Generatoren.
+- Aus 15e weiter offen: Banner/START.bat im echten Konsolenfenster ungeprueft; release.zip alt.
 
-Naechster Schritt: 16 - core/identity.py (siehe offener Punkt, wird voraussichtlich abgelehnt).
+Naechster Schritt: laut Loop 17 (wird abgelehnt); sinnvoll waere 26.
