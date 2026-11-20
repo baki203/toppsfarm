@@ -30,7 +30,7 @@ if str(ROOT) not in sys.path:
 
 from modules.Engine.Amazon.amazon_core import (  # noqa: E402
     AmazonClient, AmazonBrowser, DOMAINS, SessionStore, SkyLogger, StatusBar,
-    domain_for, load_accounts, paint,
+    accounts_dir, domain_for, load_accounts, paint,
 )
 
 
@@ -144,8 +144,7 @@ class AmazonAIOModule:
             if acc:
                 log.status("created")
                 log.line("Gen", "", acc["email"], "Account created", "ok")
-                d = ROOT / "accounts" / "Amazon"
-                d.mkdir(parents=True, exist_ok=True)
+                d = accounts_dir("amazon")
                 f = d / f"{acc['email']}.txt"
                 f.write_text(
                     "site: amazon\nemail: %s\npassword: %s\n"
@@ -257,23 +256,33 @@ class AmazonAIOModule:
 
     # ---------------------------------------------------------- 3 Invites
     async def invites(self, cc: str) -> None:
-        """3 Invites: Invite auf Produktseite anfragen. Skyridge-Log + Statusbar."""
+        """3 Invites: Invite auf Produktseite anfragen. Skyridge-Log + Statusbar.
+
+        Konten aus der Tasks-CSV/Artefakten (accounts/Amazon/): Pro Zeile wird
+        die eigene PID (ASIN) verwendet, falls vorhanden (CSV-Spalte PID), sonst
+        die interaktiv eingegebene ASIN. Login erfolgt per HTTP mit den CSV-
+        Credentials (Request-Mode) - kein Session Manager noetig."""
         log = self._log(cc)
         bar = StatusBar(log)
         bar.header(f"Amazon{cc.upper()} Invites")
-        asin = input("  ASIN: ").strip().upper()
-        if not asin:
-            return
         accounts = await self._for_accounts(cc, "Invite")
         if not accounts:
             print("  keine Konten.")
             return
+        asin_default = input("  ASIN (falls nicht in der CSV als PID) [leer=aus CSV]: ").strip().upper()
         for acc in accounts:
             email = acc.get("email")
             pwd = acc.get("password")
+            # PID/ASIN: erst aus der Zeile (Skyridge CSV-Spalte PID/ASIN), sonst Default
+            asin = (acc.get("pid") or acc.get("asin") or acc.get("PID") or asin_default or "").upper()
+            if not asin:
+                log.line("Invite", "-", email, "Keine ASIN (CSV/Default)", "warn")
+                log.status("skipped")
+                bar.render()
+                continue
             async with self._client(cc, email=email, log=log,
                                     proxy=await self._acquire_proxy()) as c:
-                # Session-Restore (nur loggen, wenn aktiv)
+                # HTTP-Login (Request-Mode). Cookies aus SessionStore sind optional.
                 if await c.restore():
                     log.line("Invite", asin, email, "Session restored!", "dim")
                     log.status("restored")

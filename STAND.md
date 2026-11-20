@@ -181,12 +181,17 @@ Stand 2026-11-20, ARBEITSWEISE (8 Punkte) + 4 QUALITY-Luecken. Deutsch. Je Punkt
    Session Manager (nur User kann Captcha/OTP loesen) herstellen.
 
 ## Stand Punkte
-23 AMAZON SESSION-SYNC: erledigt. Session Manager exportiert nach erfolgreichem
-   Login die Browser-Cookies in den SessionStore (AmazonBrowser.export_cookies ->
-   var/sessions/amazon/<email>/cookies.json). Damit koennen die HTTP-Module
-   (Invites, Farmer, Invite Checker) per c.restore() dieselbe Session wiederher-
-   stellen, ohne sich neu einzuloggen (Skyridge-Verhalten). Getestet: compileall 0,
-   export_cookies vorhanden, restore() laedt SessionStore-Cookies korrekt.
+23 AMAZON REQUEST-MODE-FLOW (korrigiert, Skyridge-Verhalten): erledigt. Der
+   Session Manager ist NICHT die Login-Quelle. Flow: Account Generator (HTTP,
+   Request-Mode) -> Konten in accounts/Amazon/<email>.txt -> load_accounts liest
+   Tasks-CSV + .txt + yaml (Dedupe ueber Email, Keys normalisiert lowercase).
+   Invites/Farmer/Invite Checker lesen dieselben Konten, nutzen pro Zeile die
+   PID (CSV-Spalte) als ASIN und loggen per HTTP (signin) ein - ohne Session
+   Manager. Session Manager bleibt nur fuer manuelles Browser-Checkout.
+   Fixes: accounts_dir() als kanonischer Ordner (repo-Root/accounts/amazon, vorher
+   inkonsistent BakiAIO vs. root), ROOT-Walk bis config/ vorhanden, Generator
+   schreibt ueber accounts_dir. Getestet: compileall 0, load_accounts liefert
+   txt-Artefakt + CSV-Zeile mit PID korrekt, Dedupe funktioniert.
 
 ## WEITER
 Offen: echter PSN-Anmeldetest braucht echte Credentials; Amazon echte Invite-Request/

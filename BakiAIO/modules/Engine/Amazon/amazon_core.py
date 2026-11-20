@@ -14,6 +14,8 @@ from pathlib import Path
 from curl_cffi.requests import AsyncSession
 
 ROOT = Path(__file__).resolve().parent.parent.parent
+while not (ROOT / "config").exists() and ROOT.parent != ROOT:
+    ROOT = ROOT.parent
 
 # CCF: Ländercode -> (Domain, Default-Waehrung, Default-Locale/Region)
 DOMAINS = {
@@ -759,20 +761,67 @@ class AmazonBrowser:
             return ""
 
 
+def accounts_dir(site: str = "amazon") -> Path:
+    """Kanonischer Konten-Ordner: ROOT/accounts/<site> (ROOT = repo-Root,
+    wo config liegt). Generator und load_accounts schreiben/lesen denselben."""
+    d = ROOT / "accounts" / site
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
 def load_accounts(site: str = "amazon") -> list[dict]:
-    """Laedt Konten aus accounts/<site>/profiles.yaml (gitignored) oder
-    accounts/<site>/accounts.csv (Skyridge-Format)."""
-    p = ROOT / "accounts" / site / "profiles.yaml"
+    """Laedt Konten im Skyridge-Request-Mode-Flow aus mehreren Quellen und
+    vereinigt sie (Dedupe ueber Email):
+
+    1. accounts/<site>/accounts.csv   (Skyridge-Format, bevorzugt - Tasks)
+    2. accounts/<site>/*.txt          (Generator-Artefakte <email>.txt)
+    3. accounts/<site>/profiles.yaml  (Fallback, gitignored)
+
+    Damit funktioniert: Generator -> Konten -> CSV/.txt -> Invite/Farmer/Checker
+    lesen dieselben Konten, ohne vorher den Session Manager nutzen zu muessen.
+    """
+    base = accounts_dir(site)
+    rows: list[dict] = []
+    seen: set[str] = set()
+
+    def _add(r: dict):
+        # Keys normalisieren (CSV liefert u. a. EMAIL/PASSWORD/PID gross)
+        norm = {str(k).strip().lower(): (v or "").strip() for k, v in r.items()}
+        email = norm.get("email", "").lower()
+        if not email or email in seen:
+            return
+        seen.add(email)
+        rows.append(norm)
+
+    # 1. Skyridge-CSV (Tasks)
+    csv = base / "accounts.csv"
+    if csv.exists():
+        for r in _load_csv(csv):
+            _add(r)
+    # 2. Generator-Artefakte (<email>.txt)
+    for f in sorted(base.glob("*.txt")):
+        if f.name.lower() in ("readme.txt", "accounts.txt"):
+            continue
+        try:
+            d = {}
+            for ln in f.read_text(encoding="utf-8").splitlines():
+                if ":" in ln:
+                    k, v = ln.split(":", 1)
+                    d[k.strip().lower()] = v.strip()
+            if d.get("email"):
+                _add(d)
+        except Exception:
+            continue
+    # 3. profiles.yaml (Fallback)
+    p = base / "profiles.yaml"
     if p.exists():
         import yaml
         try:
-            return yaml.safe_load(p.read_text(encoding="utf-8")) or []
+            for r in (yaml.safe_load(p.read_text(encoding="utf-8")) or []):
+                _add(r)
         except Exception:
-            return []
-    csv = ROOT / "accounts" / site / "accounts.csv"
-    if csv.exists():
-        return _load_csv(csv)
-    return []
+            pass
+    return rows
 
 
 def _load_csv(p: Path) -> list[dict]:
