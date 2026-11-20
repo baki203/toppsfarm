@@ -29,9 +29,10 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from modules.Engine.Amazon.amazon_core import (  # noqa: E402
-    AmazonClient, AmazonBrowser, DOMAINS, SessionStore, SkyLogger, StatusBar,
-    accounts_dir, domain_for, load_accounts, paint,
+    AmazonClient, AmazonBrowser, DOMAINS, SkyLogger, StatusBar,
+    domain_for, paint,
 )
+from modules.Engine.Amazon.amazon_store import AmazonStore  # noqa: E402
 
 
 class AmazonAIOModule:
@@ -88,6 +89,9 @@ class AmazonAIOModule:
     def _log(self, cc: str) -> SkyLogger:
         return SkyLogger(site=f"Amazon{cc.upper()}")
 
+    def _store(self) -> AmazonStore:
+        return AmazonStore("amazon")
+
     def _client(self, cc: str, email: str = "", log: SkyLogger | None = None,
                 proxy: str | None = None) -> AmazonClient:
         return AmazonClient(cc, email=email, log=log, store=SessionStore("amazon"),
@@ -101,8 +105,9 @@ class AmazonAIOModule:
         return await pool.acquire()
 
     async def _for_accounts(self, cc: str, label: str) -> list[dict]:
-        """Konten laden; falls leer interaktiv ein Konto abfragen."""
-        accounts = load_accounts("amazon")
+        """Konten aus dem Skyridge-Input laden (tasks_/gen_/custom_);
+        falls leer interaktiv ein Konto abfragen."""
+        accounts = self._store().read_tasks()
         if accounts:
             return accounts
         email = input(f"  {label}: Email: ").strip()
@@ -144,14 +149,15 @@ class AmazonAIOModule:
             if acc:
                 log.status("created")
                 log.line("Gen", "", acc["email"], "Account created", "ok")
-                d = accounts_dir("amazon")
-                f = d / f"{acc['email']}.txt"
-                f.write_text(
-                    "site: amazon\nemail: %s\npassword: %s\n"
-                    "first_name: %s\nlast_name: %s\n" % (
-                        acc["email"], acc["password"],
-                        acc.get("first_name", ""), acc.get("last_name", "")),
-                    encoding="utf-8")
+                # Skyridge: an gen_AmazonAccounts.csv anhaengen
+                self._store().append("gen", {
+                    "email": acc["email"], "email_password": "",
+                    "password": acc["password"],
+                    "firstName": acc.get("first_name", ""),
+                    "lastName": acc.get("last_name", ""),
+                    "phonenumber": "", "country_iso": cc, "phone_iso": "",
+                    "proxy": proxy or "",
+                }, dedupe_keys=["email"])
             else:
                 log.status("error")
                 log.line("Gen", "", "", "Account generation failed", "err")
@@ -198,9 +204,9 @@ class AmazonAIOModule:
         log = self._log(cc)
         bar = StatusBar(log)
         bar.header(f"Amazon{cc.upper()} Account Reset")
-        accounts = load_accounts("amazon")
+        accounts = self._store().read_tasks()
         if not accounts:
-            print("  keine Konten unter accounts/Amazon gefunden.")
+            print("  keine Konten in accounts/Amazon (tasks_/gen_/custom_).")
             return
         try:
             new_pass = input("  Neues Passwort (min. 8, gross/klein/Zahl): ").strip()
@@ -265,14 +271,36 @@ class AmazonAIOModule:
         log = self._log(cc)
         bar = StatusBar(log)
         bar.header(f"Amazon{cc.upper()} Invites")
-        accounts = await self._for_accounts(cc, "Invite")
+        store = self._store()
+        accounts = self._for_accounts(cc, "Invite")
         if not accounts:
             print("  keine Konten.")
             return
+        # Input-CSV waehlen: falls mehrere tasks_*-Dateien, auswaehlen
+        inputs = store.list_inputs()
+        sel = None
+        if len(inputs) > 1:
+            print("  Tasks-CSV auswaehlen (Enter = alle):")
+            for i, name in enumerate(inputs, 1):
+                print(f"   {i}. {name}")
+            try:
+                n = int(input("  Nummer [0]: ").strip() or "0")
+            except ValueError:
+                n = 0
+            if 1 <= n <= len(inputs):
+                sel = inputs[n - 1]
+        if sel:
+            rows = store.read_file(sel)
+        else:
+            rows = accounts
+        if not rows:
+            print("  keine Konten.")
+            return
         asin_default = input("  ASIN (falls nicht in der CSV als PID) [leer=aus CSV]: ").strip().upper()
-        for acc in accounts:
+        for acc in rows:
             email = acc.get("email")
             pwd = acc.get("password")
+            proxy = acc.get("proxy") or ""
             # PID/ASIN: erst aus der Zeile (Skyridge CSV-Spalte PID/ASIN), sonst Default
             asin = (acc.get("pid") or acc.get("asin") or acc.get("PID") or asin_default or "").upper()
             if not asin:
@@ -281,8 +309,8 @@ class AmazonAIOModule:
                 bar.render()
                 continue
             async with self._client(cc, email=email, log=log,
-                                    proxy=await self._acquire_proxy()) as c:
-                # HTTP-Login (Request-Mode). Cookies aus SessionStore sind optional.
+                                    proxy=proxy or await self._acquire_proxy()) as c:
+                # HTTP-Login (Request-Mode). Cookies aus .sessions sind optional.
                 if await c.restore():
                     log.line("Invite", asin, email, "Session restored!", "dim")
                     log.status("restored")
@@ -296,6 +324,13 @@ class AmazonAIOModule:
                 if ok:
                     log.status("requested")
                     log.line("Invite", asin, email, msg, "ok")
+                    store.add_invite(asin, email, pwd, cc, proxy)
+                    store.append("invited", {
+                        "email": email, "asin": asin, "country_iso": cc,
+                        "status": "invited", "product": "", "price": "",
+                        "checked_at": _now(),
+                    }, dedupe_keys=["email", "asin"])
+                    store.add_asin_history(asin)
                 else:
                     log.status("already")
                     log.line("Invite", asin, email, msg, "dim")
@@ -345,6 +380,7 @@ class AmazonAIOModule:
         log = self._log(cc)
         bar = StatusBar(log)
         bar.header(f"Amazon{cc.upper()} Invite Checker")
+        store = self._store()
         asin = input("  ASIN: ").strip().upper()
         accounts = await self._for_accounts(cc, "Check")
         if not accounts:
@@ -352,8 +388,9 @@ class AmazonAIOModule:
         for acc in accounts:
             email = acc.get("email")
             pwd = acc.get("password")
+            proxy = acc.get("proxy") or ""
             async with self._client(cc, email=email, log=log,
-                                    proxy=await self._acquire_proxy()) as c:
+                                    proxy=proxy or await self._acquire_proxy()) as c:
                 if not await self._restore_client(c, pwd):
                     log.line("Check", asin, email, "Login failed", "err")
                     log.status("error")
@@ -361,9 +398,17 @@ class AmazonAIOModule:
                     continue
                 log.line("Check", asin, email, "Checking invite status ...", "info")
                 won = await c.check_invite(asin)
-                log.status("won" if won else "lost")
+                st = "won" if won else "lost"
+                log.status(st)
                 log.line("Check", asin, email,
                          "Invite won!" if won else "No win", "ok" if won else "dim")
+                store.append("checked", {
+                    "email": email, "email_password": "",
+                    "password": pwd, "firstName": acc.get("firstName", ""),
+                    "lastName": acc.get("lastName", ""),
+                    "country_iso": cc, "phone_iso": "", "phonenumber": "",
+                    "status": st, "proxy": proxy,
+                }, dedupe_keys=["email", "status"])
                 bar.render()
         print()
 
@@ -373,6 +418,7 @@ class AmazonAIOModule:
         log = self._log(cc)
         bar = StatusBar(log)
         bar.header(f"Amazon{cc.upper()} Farmer")
+        store = self._store()
         asin = input("  ASIN: ").strip().upper()
         accounts = await self._for_accounts(cc, "Farmer")
         if not accounts:
@@ -380,8 +426,9 @@ class AmazonAIOModule:
         for acc in accounts:
             email = acc.get("email")
             pwd = acc.get("password")
+            proxy = acc.get("proxy") or ""
             async with self._client(cc, email=email, log=log,
-                                    proxy=await self._acquire_proxy()) as c:
+                                    proxy=proxy or await self._acquire_proxy()) as c:
                 if not await self._restore_client(c, pwd):
                     log.line("Farmer", asin, email, "Login failed", "err")
                     log.status("error")
@@ -395,6 +442,16 @@ class AmazonAIOModule:
                 log.line("Farmer", asin, email,
                          f"Activity: cart={cart} wishlist={wish}" if ok else "Activity failed",
                          "ok" if ok else "err")
+                if ok:
+                    store.append("farmed", {
+                        "email": email, "email_password": "",
+                        "password": pwd, "country_iso": cc, "farmed": "farmed",
+                        "proxy_host": _proxy_part(proxy, 0),
+                        "proxy_port": _proxy_part(proxy, 1),
+                        "proxy_pool": _proxy_part(proxy, 2),
+                        "proxy_user": _proxy_part(proxy, 3),
+                    }, dedupe_keys=["email"])
+                    store.add_asin_history(asin)
                 bar.render()
         print()
 
@@ -419,10 +476,11 @@ class AmazonAIOModule:
                                      headless=False, log=log) as b:
                 ok = await b.restore_or_login()
                 if ok:
-                    # Cookies in den SessionStore exportieren, damit die
-                    # HTTP-Module (Invites/Farmer/Checker) dieselbe Session
-                    # wiederherstellen koennen, ohne sich neu einzuloggen.
-                    await b.export_cookies()
+                    # Cookies im Skyridge-Format (.sessions/<email>__<CC>.json)
+                    # speichern, damit die HTTP-Module dieselbe Session nutzen.
+                    cookies = await b.get_cookies()
+                    if cookies:
+                        self._store().save_session(email, cookies, cc)
                     await b.page.goto(f"https://{domain_for(cc)}/",
                                       wait_until="domcontentloaded", timeout=40000)
                     log.status("restored")
@@ -447,6 +505,7 @@ class AmazonAIOModule:
         log = self._log(cc)
         bar = StatusBar(log)
         bar.header(f"Amazon{cc.upper()} ACO")
+        store = self._store()
         pid = input("  Produkt-ID (ASIN): ").strip().upper()
         if not pid:
             return
@@ -464,8 +523,9 @@ class AmazonAIOModule:
         for acc in accounts:
             email = acc.get("email")
             pwd = acc.get("password")
+            proxy = acc.get("proxy") or ""
             async with self._client(cc, email=email, log=log,
-                                    proxy=await self._acquire_proxy()) as c:
+                                    proxy=proxy or await self._acquire_proxy()) as c:
                 if not await self._restore_client(c, pwd):
                     log.line("ACO", pid, email, "Login failed", "err")
                     log.status("error")
@@ -477,6 +537,29 @@ class AmazonAIOModule:
                 log.line("ACO", pid, email,
                          "Checkout prepared" if ok else "Checkout failed",
                          "ok" if ok else "err")
+                if ok:
+                    store.append("checkout", {
+                        "email": email, "email_password": "",
+                        "password": pwd,
+                        "firstName": acc.get("firstName", ""),
+                        "lastName": acc.get("lastName", ""),
+                        "phoneNumber": acc.get("phonenumber", ""),
+                        "country_iso": cc, "proxy": proxy,
+                        "asins": ";".join([pid] + dummy),
+                        "addressLine1": acc.get("addressLine1", ""),
+                        "addressLine2": acc.get("addressLine2", ""),
+                        "city": acc.get("city", ""),
+                        "state": acc.get("state", ""),
+                        "postalCode": ship, "addressCountry": cc,
+                        "bank_code": "", "cardNumber": acc.get("cardNumber", ""),
+                        "cardMonth": acc.get("cardMonth", ""),
+                        "cardYear": acc.get("cardYear", ""),
+                        "cardCvc": acc.get("cardCvc", ""),
+                        "cardHolderName": acc.get("cardHolderName", ""),
+                        "giftcard": "", "webhook_url": "",
+                        "delivery_preference": "",
+                    }, dedupe_keys=["email", "asins"])
+                    store.add_asin_history(pid)
                 bar.render()
         print()
 
@@ -581,6 +664,17 @@ class AmazonAIOModule:
               f"Sperrquote {quote:.1f}% "
               f"{'(< 5% erwartet)' if quote < 5 else '(UEBER 5%!)'} "
               f"{'; '.join(failed) if failed else ''}")
+
+
+def _now() -> str:
+    from datetime import datetime
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _proxy_part(proxy: str, idx: int) -> str:
+    """Proxy-Format IP:PORT:USER:PASS -> Teil (host/port/pool/user)."""
+    parts = proxy.split(":")
+    return parts[idx] if idx < len(parts) else ""
 
 
 def run(cc: str = "DE") -> int:

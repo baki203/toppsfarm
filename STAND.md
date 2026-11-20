@@ -181,7 +181,19 @@ Stand 2026-11-20, ARBEITSWEISE (8 Punkte) + 4 QUALITY-Luecken. Deutsch. Je Punkt
    Session Manager (nur User kann Captcha/OTP loesen) herstellen.
 
 ## Stand Punkte
-23 AMAZON REQUEST-MODE-FLOW (korrigiert, Skyridge-Verhalten): erledigt. Der
+24 AMAZON SKYRIDGE-DATEILAYOUT EXAKT NACHGEBILDET: erledigt. Neues Modul
+   modules/Engine/Amazon/amazon_store.py (AmazonStore) reproduziert das reale
+   Skyridge-Layout 1:1 (Quelle: C:\Users\sargo\Desktop\SkyridgeSetup):
+   gen_/custom_/tasks_/checked_/invited_/farmed_/taskcc_/checkout_/orders_
+   _AmazonAccounts.csv + invites/<ASIN>_AmazonAccounts.csv + .sessions/<email>__<CC>.json
+   + asinHistory.txt. Spalten klein geschrieben, nur Append, Dedupe ueber
+   Email/ASIN. AmazonAIO verdrahtet: Generator->gen_, Invites->invited_+invites/
+   +asinHistory, Farmer->farmed_, Checker->checked_, ACO->checkout_+asinHistory,
+   Session Manager->.sessions/<email>__<CC>.json. AmazonClient.restore()/save()
+   lesen/schreiben bevorzugt die Skyridge-.sessions-Datei (Fallback SessionStore).
+   Getestet: Store-Kern (alle Dateiarten, Dedupe, ASIN-Grossschreibung,
+   asinHistory, Session), Client-Restore aus .sessions, compileall 0. Grund fuer
+   genaue Nachbildung: reales Skyridge ist bewiesen funktionsfaehig.
    Session Manager ist NICHT die Login-Quelle. Flow: Account Generator (HTTP,
    Request-Mode) -> Konten in accounts/Amazon/<email>.txt -> load_accounts liest
    Tasks-CSV + .txt + yaml (Dedupe ueber Email, Keys normalisiert lowercase).

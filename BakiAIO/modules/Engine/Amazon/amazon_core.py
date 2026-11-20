@@ -244,8 +244,16 @@ class AmazonClient:
 
     async def restore(self):
         """Laedt gespeicherte Cookies und setzt sie zurueck (Skyridge:
-        'Restoring session ...' / 'Session restored!')."""
-        cookies = await self.store.load_cookies(self.email)
+        'Restoring session ...' / 'Session restored!'). Bevorzugt die Skyridge-
+        Session-Datei accounts/Amazon/.sessions/<email>__<CC>.json, Fallback auf
+        den SessionStore (var/sessions)."""
+        try:
+            from modules.Engine.Amazon.amazon_store import AmazonStore
+            cookies = AmazonStore("amazon").load_session(self.email, self.cc)
+        except Exception:
+            cookies = None
+        if not cookies:
+            cookies = await self.store.load_cookies(self.email)
         if not cookies:
             return False
         self.s.cookies.update({c["name"]: c["value"] for c in cookies
@@ -260,6 +268,12 @@ class AmazonClient:
                                 "domain": c.domain, "path": c.path or "/"})
             except Exception:
                 pass
+        # Skyridge .sessions-Datei (primär) + SessionStore (Fallback)
+        try:
+            from modules.Engine.Amazon.amazon_store import AmazonStore
+            AmazonStore("amazon").save_session(self.email, cookies, self.cc)
+        except Exception:
+            pass
         await self.store.save_cookies(self.email, cookies)
 
     def url(self, path: str, **params) -> str:
@@ -503,22 +517,31 @@ class AmazonBrowser:
     async def __aexit__(self, *exc):
         await self.stop()
 
+    async def get_cookies(self) -> list[dict]:
+        """Liest die aktuellen Browser-Cookies als Skyridge-Cookie-Liste
+        [{name, value, domain, path}]. Liefert [] wenn nicht verfuegbar."""
+        try:
+            ctx = self.browser.browser if self.browser else None
+            if not ctx:
+                return []
+            out = []
+            for c in await ctx.cookies():
+                out.append({"name": c.get("name", ""), "value": c.get("value", ""),
+                            "domain": c.get("domain", ""), "path": c.get("path", "/")})
+            return out
+        except Exception:
+            return []
+
     async def export_cookies(self) -> None:
         """Schreibt die aktuellen Browser-Cookies in den SessionStore, damit
         die HTTP-Module (Invites/Farmer/Checker) dieselbe Session wiederher-
         stellen koennen (Session Manager als einzige Login-Quelle)."""
-        try:
-            ctx = self.browser.browser if self.browser else None
-            if not ctx:
-                return
-            cookies = []
-            for c in await ctx.cookies():
-                cookies.append({"name": c.get("name", ""), "value": c.get("value", ""),
-                                "domain": c.get("domain", ""), "path": c.get("path", "/")})
-            if cookies:
+        cookies = await self.get_cookies()
+        if cookies:
+            try:
                 await self.store.save_cookies(self.email, cookies)
-        except Exception:
-            pass
+            except Exception:
+                pass
 
     # ---------------------------------------------------------------- Session
     async def restore_or_login(self) -> bool:
