@@ -3,7 +3,6 @@ Stand 2026-11-20, ARBEITSWEISE (8 Punkte) + 4 QUALITY-Luecken. Deutsch. Je Punkt
 
 ## BLOCKER
 - Skyridge-GitBook auth-geschuetzt (SPA nur JS-Shell, Content-API 403, kein Wayback-Mirror). Erkenntnisse stattdessen aus lokaler settings.json + crashlog.log (PyInstaller-Tracebacks) + PepperScripts-Doku.
-- Auftrag "discord/auswerten.py" (Vorfilter/Stueckzahl/Kostenschaetzung/Teststueck) hier nicht vorhanden - stammt aus anderem Chat ohne uebernommenen Verlauf. BLOCKED: Kontext fehlt.
 
 ## Stand Punkte
 9 QUALITY-LUECKEN (A1 Catch-All, A10 SMS, A4 Geo, Proxy-Vorpruefung): erledigt.
@@ -30,4 +29,13 @@ Stand 2026-11-20, ARBEITSWEISE (8 Punkte) + 4 QUALITY-Luecken. Deutsch. Je Punkt
 - Analyse-Werkzeuge: pyinstxtractor-ng (venv), UPX (winget). Main-EXE = .NET-Launcher (.fptable, 1x MZ); UPX/NSIS-Marker false positive; Inbox-EXE = Tauri (inbox.skyridge.eu).
 
 ## Naechster Schritt
-Alle 8 Punkte erledigt. Optional: NBA/Angebote, E2E-Orchestrator-Test mit Discord-Webhook, Release pushen (tag).
+10 DISCORD-AUSWERTUNG: erledigt. discord/auswerten.py (nur Stdlib): Vorfilter (bot/emoji/links/
+   gruesse/<15Z/duplikate, Format an ersten 30 Zeilen), Relevanzfilter (15 Begriffe), Stuecke
+   100k/max 40, POST an Venice-API (VENICE_API_KEY/MODEL aus keys.env, Parser load_env),
+   Anweisung max 60 Bullets mit [Kanal|Monat], WISSEN_roh.md + fortschritt.json (Neustart
+   springt Erledigtes ueber), Kosten 0,175/0,35 je 1M, Stopp bei 1,00 $. .gitignore: discord/*
+   ausser auswerten.py + WISSEN.md. Getestet: Vorfilter 10368 Nachr. -> 14 Stuecke, $0.067/Lauf;
+   Teststueck 0 ($0.007) liefert 60+ Amazon-Fakten (2captcha, ARKOSE_LEVEL_1/4, SMS-Provider,
+   ~500 Konten/Tag, catchall vs aliases, Invite-Fenster 21-22U). Committet.
+11 WEITER: --lauf fuer alle offenen Stuecke (14, ~$0.06) ausfuehren, dann Fakten in KNOWLEDGE.md
+   + QUALITY.md umsetzen.

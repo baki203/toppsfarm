@@ -8,3 +8,6 @@ config/keys.env
 config/profiles.yaml
 accounts/*/profiles.yaml
 release.zip
+discord/*
+!discord/auswerten.py
+!discord/WISSEN.md
