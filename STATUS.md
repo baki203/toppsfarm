@@ -10,3 +10,9 @@ Ergebnis: erledigt.
   - `var/logs/run-*.log` -> `cfg.path(cfg.log_dir)` = `ROOT / rel`
 - Keine Schreibzugriffe relativ zum Arbeitsverzeichnis gefunden.
 Fehler: keine.
+
+## Schritt 2 - config-Ordner in cmd_setup (2026-11-20)
+Ergebnis: erledigt.
+- `(ROOT / "config").mkdir(parents=True, exist_ok=True)` steht jetzt am Anfang von cmd_setup (vor keys.env) und noch einmal direkt vor dem Schreiben von profiles.yaml.
+- `py_compile toppsfarm.py` laeuft ohne Fehler.
+Fehler: keine.
