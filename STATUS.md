@@ -330,3 +330,16 @@ title: Attention Required! | Cloudflare
 body[:200]: '<!DOCTYPE html>\n<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->\n<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->\n<!--[if IE 8]>    <html class="no-'
 ```
 Fehler: Statuscode 403, Body ist die Cloudflare-Blockseite `Attention Required! | Cloudflare` (5683 B HTML), kein products-JSON. Gleiches Ergebnis wie Matrix 3 aus Schritt 4: die HTTP-Version ist nicht die Ursache, `/products.json` ist auf de.topps.com pauschal gesperrt.
+
+## Schritt 11 - mit und ohne ?limit=250 (2026-11-20)
+Ergebnis: kein Unterschied, beide 403.
+- Je Variante genau eine Anfrage auf de.topps.com (ohne Proxy), curl_cffi 0.17.0, `impersonate=chrome`, Header nur `accept` und `accept-language` wie nach Schritt 8, HTTP-Version nicht erzwungen (`http_version=3` = h2).
+- Kein Code geaendert, die Exe wurde nicht neu gebaut.
+
+Ausgabe woertlich:
+```
+curl_cffi 0.17.0
+ohne Query | https://de.topps.com/products.json | status=403 | http_version=3 | text/html; charset=UTF-8 | server=cloudflare | 5683 B | title=Attention Required! | Cloudflare | body[:80]='<!DOCTYPE html>\n<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <!'
+mit ?limit=250 | https://de.topps.com/products.json?limit=250 | status=403 | http_version=3 | text/html; charset=UTF-8 | server=cloudflare | 5683 B | title=Attention Required! | Cloudflare | body[:80]='<!DOCTYPE html>\n<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <!'
+```
+Fehler: Statuscode 403 bei beiden Varianten, Body ist jeweils die Cloudflare-Blockseite `Attention Required! | Cloudflare` (5683 B HTML), kein products-JSON. Gleiches Ergebnis wie Matrix 4 aus Schritt 4: der Query-Parameter ist nicht die Ursache, `/products.json` ist auf de.topps.com pauschal gesperrt.
