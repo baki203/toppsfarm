@@ -16,6 +16,11 @@ Stand: 2026-11-20, Aufgaben 1-7 aus AGENTS.md + Nachgereichtes.
 - Webhook-Test: POST {"content":"Baki AIO Test"} -> HTTP 204 (ok).
 - cart-Test 1 Task (de.topps.com, variant 51178597613808): Task 3 'ok' mit Checkout-Link (shop-de.topps.com/...). Orchestrator sendet CHECKOUT-Nachricht an Discord. Ein weiterer Task 'fail' (warmup).
 
+## LETZTER TEST
+- keys.env: CAPTCHA_PROVIDER, CAPSOLVER_KEY, DISCORD_WEBHOOK, DISCORD_WEBHOOK_ERRORS vorhanden (OK).
+- Webhook-Test: POST {"content":"Baki AIO Test"} -> HTTP 204 (ok).
+- cart-Test 1 Task (de.topps.com, variant 51178597613808): Task 4 'ok' mit Checkout-Link (shop-de.topps.com/...), Notiz 'storefront checkout-link'.
+
 ## BLOCKER
 - products.json auf de.topps.com 403 auch mit Browser-Cookies (serverseitig); Storefront-API als Ersatz verdrahtet.
 
