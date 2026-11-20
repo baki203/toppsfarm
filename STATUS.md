@@ -296,3 +296,19 @@ server: cloudflare
 body[:300]: '<!DOCTYPE html>\n<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->\n<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->\n<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->\n<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!'
 ```
 Fehler: Statuscode 403, Body ist die Cloudflare-Blockseite (HTML), kein products-JSON. Gleiches Ergebnis wie Matrix 1 aus Schritt 4: die Header sind nicht die Ursache des 403.
+
+## Schritt 9 - impersonate-Varianten (2026-11-20)
+Ergebnis: alle fuenf Varianten liefern 403. Keine uebersprungen, alle sind in curl_cffi 0.17.0 vorhanden.
+- Je Variante genau eine Anfrage auf `https://de.topps.com/products.json` (ohne Query, ohne Proxy), Header nur `accept` und `accept-language` wie nach Schritt 8, Rest vom impersonate.
+- `chrome` ist in curl_cffi ein Alias auf die neueste Chrome-Version und steht nicht in der `BrowserType`-Liste; die Variante wurde deshalb einzeln nachgetestet.
+- Kein Code geaendert, `cfg.impersonate` bleibt `chrome`.
+
+Spalten: Variante | Status | content-type | Groesse | server | Inhalt.
+```
+impersonate=chrome | 403 | text/html; charset=UTF-8 | 5683 B | server=cloudflare | title=Attention Required! | Cloudflare
+impersonate=chrome131 | 403 | text/html; charset=UTF-8 | 5683 B | server=cloudflare | title=Attention Required! | Cloudflare
+impersonate=chrome124 | 403 | text/html; charset=UTF-8 | 5683 B | server=cloudflare | title=Attention Required! | Cloudflare
+impersonate=safari17_0 | 403 | text/html; charset=UTF-8 | 5683 B | server=cloudflare | title=Attention Required! | Cloudflare
+impersonate=firefox133 | 403 | text/html; charset=UTF-8 | 5683 B | server=cloudflare | title=Attention Required! | Cloudflare
+```
+Fehler: Statuscode 403 bei jeder Variante, Body ist die Cloudflare-Blockseite `Attention Required! | Cloudflare` (5683 B HTML), kein products-JSON. Gleiches Ergebnis wie Matrix 2 aus Schritt 4: der Fingerprint ist nicht die Ursache, `/products.json` ist auf de.topps.com pauschal gesperrt.
