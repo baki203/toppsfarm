@@ -138,3 +138,45 @@ Adressvariation, Karte erst vor Kauf, Erstkauf klein/zeitversetzt.
 - Karte erst vor dem Kauf (Default-Zahlung erst beim Checkout relevant).
 - Erstkauf klein + zeitversetzt (aging; weiche Bans).
 - Telefon nur bei Aufforderung (Amazon `checkPhone`/`noPhoneOnly`).
+
+## 9. Discord-Export (Community, 2026-11-20)
+
+Quelle: Vorfilter 10.368 Nachrichten -> 14 Stuecke (voller Lauf $0.10), konsolidiert in
+`discord/WISSEN.md`. Hier nur Punkte mit Mehrfach-Nennung (xN>=3), alle als **(behauptet)**
+bis sie per Gegenprobe als Fakt bestaetigt sind. Nutzer-Korrekturen sind bereits Fakt (siehe
+Abschnitt 2 + QUALITY.md).
+
+- Captcha (Amazon): 2Captcha ist Standard/Default; WAF-Captcha ist Amazon-inhouse und nicht ueber
+  2Captcha loesbar (x4). Fehlercodes ARKOSE_LEVEL_1/4/5, "Captcha verification failed",
+  "Captcha failed, retrying", Captcha-Loop nach green tick (x4). noCaptchaOnly=true bricht Tasks
+  ab und korreliert mit Non-PVA (x6). 2Captcha-Ausfallphasen: 4000 Accounts angefragt, 0 generiert
+  (x3). Free-Captcha-Wellen ~10-25, danach "blocked captcha"/"PVA required" (x6). (behauptet)
+- Proxy (Amazon): Proxy-Land muss zum Country-/phone-ISO passen (x6). Empfehlung ~1 Konto pro
+  Proxy, frische Liste je Gen-Session, gleicher Proxy beim Checkout (x4). Provider-Pools werden
+  geteilt und von Amazon geflaggt; Clip-Rate je Provider vergleichen (x3). Session-Manager/Farmer/
+  Checker nutzen den ZULETZT genutzten Task-Proxy, nicht die CSV (x6). Auth-Fehler: "proxies need
+  authenticating", 407 "Proxy Authentication Required" = leeres Guthaben, "proxy auth failed" (x5).
+  "Banned proxy getSignUpPage ... rotating -> 403" (x6). "Couldn't submit data - change your
+  proxies" = proxy-bedingt (x14). (behauptet)
+- E-Mail (Amazon): Catch-All-Domains funktionieren, Aliases NICHT (600+ Aliases ohne OTP) (x4).
+  OTP-Fehler "Email code not found"/"Email not found - Timeout" trotz eingehender Mails (x9).
+  Mastermail: Gmail-App-Passwort in settings.json, IMAP+OAuth, Outlook-Weiterleitung rate-limited
+  (x5). (behauptet)
+- Domain-Klima (Amazon): ~1000 Accounts pro Domain vor Clip-Gefahr, neue Domain je ~1k, nach Flag
+  ~5 Tage Ruhe (x4). (behauptet)
+- Invite/Drops (Amazon): Invites bevorzugt an Accounts mit Bestellhistorie; Order-History-/Trust-
+  Score-Pflicht (x5). Drop-Fenster ueberwiegend 21-22 Uhr, Invites ~15 min (x3). Account-Status:
+  pva_locked, session_dead, "Ghost account detected - no auth cookies after registration - swap
+  phone/proxy provider" (x6). (behauptet)
+- Ban-Ursachen (Amazon): laut Community ausschliesslich SIM/Proxy, nicht E-Mail-Domain (x8);
+  Proxy-Wechsel nach Gen/bei alten Konten = hohe Clip-Wahrscheinlichkeit (x5). (behauptet)
+- Endpunkte (Amazon): Signin `/ap/signin?openid.pape.max_auth_age=0&openid.return_to=...&
+  openid.assoc_handle=saflex|flex`, Fehler "unexpected EOF", 503 "Signin page error, rotating
+  session" (x4). Add-Address `/checkout/p/{ASIN}/add-new-shipping-address?pipelineType=Chewbacca`
+  (x1). Location-POST "empty/invalid body - aborting location change (session-level failure)" (x3).
+  Checkout "FAIL CHECKOUT_FAILED: item selection transition failed" / "payment registration
+  failed" (x1). (behauptet)
+- Nike: Anti-Bot Kasada + Akamai. Kasada: "kasada error", Logformat `Unknown statuscode -> (400) |
+  Kasada block -> (429)`, "Kasada-ERROR CD, trying to fix the session" (x6). Akamai: `akamai block
+  -> 403`, Cookie-Loop nach "passed Nike challenge" (x4). Kontinuierliche Adaption an BP-Aenderungen
+  (x13). (behauptet)

@@ -10,7 +10,7 @@ strenger: explizite Ja/Nein-Punkte + messbare Sperrquote statt "Best Effort".
 |---|-------|-----------------|------------------------|
 | A1 | Eigene Catch-All-Domain je Mastermail | Statt Wegwerf-/tmp-Mail: eigene Domain mit Catch-All pro Mastermail, Weiterleitung in ein Konto. Generator und OTP/Link-Verifikation darueber. **Pflicht fuer Amazon, mit mehreren eigenen Domains (Skalierung).** | Skyridge `Mastermails[].catchall`; Pepper: "Catchall will not pass for sure" bei Amazon -> eigene Domain noetig, Wegwerf geht nicht. |
 | A2 | Ein persistentes Browserprofil je Konto | Je Konto eigenes Profil-Verzeichnis (var/browser-<site>/<account>), nie geteilt. | Skyridge `SessionStore` legt Session je Konto an. |
-| A3 | Eine sticky Wohn-IP je Konto | Eine sticky Residential-IP (nicht rotierend) je Konto, fuer die Lebensdauer gehalten. | Skyridge `GeoCoder.position_1/2` = zwei feste Standorte; Pepper: ISP/DC + Proxy-Checker. |
+| A3 | Eine sticky Wohn-IP je Konto | Eine sticky Residential-IP (nicht rotierend) je Konto, fuer die Lebensdauer gehalten. **Plus: 1 Konto pro Proxy, kein Proxy-Wechsel nach Gen.** | Skyridge `GeoCoder.position_1/2` = zwei feste Standorte; Pepper: ISP/DC + Proxy-Checker. Discord-Export (behauptet): Proxy-Wechsel nach Gen = Clip. |
 | A4 | IP-Land und Region passend zur Adresse | IP-Geo (Land/Region) muss zur Profiladresse passen, sonst kein Taskstart. | Pepper Region-Switcher `Shopify <CC>`, COUNTRY je Task. |
 | A5 | Adressvariation | Adresse je Konto eindeutig (Hausnummer/Zeile variieren), keine gleiche Adresse/CC ueber Konten. | Pepper `XXX`-Jig + Anti-Fraud-Warnung (gleiche CC+Adresse storniert Amazon). |
 | A6 | Browsen vor der Registrierung | Vor Formular: 2-4 Unterseiten besuchen, scrollen, Mausbewegungen (core/human), Mindestverweilzeit. | Pepper Human-Modus nach Add-to-Cart. |
@@ -47,10 +47,18 @@ Nach jedem Lauf (Monitor-Stopp, Checkout-Ende, Generator-Ende, Toolbox-Test) wir
 ### Implementierung
 - `modules/quality.py`: `Quality`-Klasse (increment, finish, store, report). Ein Instanz je Modul-Lauf,
   erreichbar in Monitor/Checkout/Generator ueber `self.q`.
-- Sperr-Erkennung: `Quality.detect(text)` prueft URL/HTML gegen Musterliste:
-  `cf-please-wait`, `access denied`, `blocked`, `business processing error`, `captcha`,
-  `suspended`, `invalid credentials too many`, `Pardon Our Interruption`, `rate limit`.
-- Banner-Erkennung: Zaehler je Muster-Typ (z. B. `banned:cloudflare`, `banned:akamai`).
+- Sperr-Erkennung: `Quality.detect(text)` prueft URL/HTML gegen Musterliste (Erweitert 2026-11-20,
+  Quelle Discord-Export, siehe KNOWLEDGE.md 9):
+  - cloudflare: `cf-please-wait`, `access denied`, `attention required`
+  - akamai: `business processing error`, `pardon our interruption`, `you have been blocked`, `akamai block`
+  - captcha: `arkose_level`, `captcha verification failed`, `captcha`
+  - proxy: `couldn't submit data`, `proxy auth failed`, `proxy responded with non 200 code: 407`,
+    `proxy authentication 407`, `proxies need authenticating`
+  - kasada: `kasada block`, `kasada error`
+  - suspended: `ghost account`, `pva_locked`, `suspended`, `this account has been blocked`
+  - rate: `rate limit`, `too many requests`, `invalid credentials too many`
+- Banner-Erkennung: Zaehler je Muster-Typ (z. B. `banned:cloudflare`, `banned:akamai`,
+  `banned:kasada`, `banned:proxy`, `banned:captcha`).
 
 ## C. Modul-Mindestprofile (spezifisch)
 
@@ -71,6 +79,9 @@ Nach jedem Lauf (Monitor-Stopp, Checkout-Ende, Generator-Ende, Toolbox-Test) wir
   Grenze nur durch eigene Domains/Ressourcen.
 - A7/A8 entfallen fuer Generator; ADDRESS-Modus als separates Modulziel.
 - Retry-Logik: bei Login-Loop 3-5 min Pause (weiches Rate-Limit), max 3 Retries.
+- Proxy (behauptet, Discord-Export): 1 Konto pro Proxy, kein Proxy-Wechsel nach Gen;
+  Proxy-Land muss zum Country-ISO passen; ARKOSE_LEVEL_1/4/5 als banned:captcha zaehlen,
+  "Couldn't submit data"/407 als banned:proxy.
 
 ### C5 Riftbound Gen (Generator, Raffle-Entries)
 - A1-A6, A10. Zusaetzlich SessionStore-artiges Profil je Konto (A2).
@@ -93,6 +104,8 @@ Nach jedem Lauf (Monitor-Stopp, Checkout-Ende, Generator-Ende, Toolbox-Test) wir
 - Messpunkte: banned:bpe (Business Processing Error) separat; Proxy-Checker-Vorbedingung
   (Entry- und Payment-Schritt testen) - `--check-proxies`.
 - A2, A3, A4, A5, A8, A9, A10; A1 via Catch-All je Konto.
+- Anti-Bot (behauptet, Discord-Export): Kasada ("kasada block", "kasada error") und Akamai
+  ("akamai block -> 403") als banned:kasada / banned:akamai zaehlen.
 
 ### C10 Smyths Toys (eigene Selektoren)
 - Store- und Lieferverfuegbarkeit getrennt (eigene Auswertung), WAF-Erkennung

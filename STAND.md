@@ -36,6 +36,17 @@ Stand 2026-11-20, ARBEITSWEISE (8 Punkte) + 4 QUALITY-Luecken. Deutsch. Je Punkt
    springt Erledigtes ueber), Kosten 0,175/0,35 je 1M, Stopp bei 1,00 $. .gitignore: discord/*
    ausser auswerten.py + WISSEN.md. Getestet: Vorfilter 10368 Nachr. -> 14 Stuecke, $0.067/Lauf;
    Teststueck 0 ($0.007) liefert 60+ Amazon-Fakten (2captcha, ARKOSE_LEVEL_1/4, SMS-Provider,
-   ~500 Konten/Tag, catchall vs aliases, Invite-Fenster 21-22U). Committet.
-11 WEITER: --lauf fuer alle offenen Stuecke (14, ~$0.06) ausfuehren, dann Fakten in KNOWLEDGE.md
-   + QUALITY.md umsetzen.
+   ~500 Konten/Tag, catchall vs aliases, Invite-Fenster 21-22U). Voller Lauf $0.10 (14 Stuecke),
+   WISSEN.md konsolidiert (108 Zeilen, nach Thema, Zaehler, behauptet-Markierung), WISSEN_roh.md
+   geloescht. Committet fdfb882.
+11 UMSETZUNG DISCORD-ERKENNTNISSE: erledigt. KNOWLEDGE.md Abschnitt 9 (nur xN>=3, als behauptet,
+   Nutzer-Korrekturen als Fakt): Captcha/ARKOSE, Proxy-Regeln (1 Konto/Proxy, kein Wechsel),
+   Catch-All vs Aliases, Domain-Klima (~1k/Domain, 5 Tage Ruhe), Invite-Fenster 21-22U, Ban-Ursachen
+   SIM/Proxy, Amazon-Endpunkte, Kasada/Akamai. QUALITY.md: detect-Musterliste erweitert
+   (ARKOSE_LEVEL_1/4/5, captcha verification failed, couldn't submit data, proxy auth failed, 407,
+   ghost account, pva_locked, kasada block, akamai block) in modules/quality.py + Abschnitt B,
+   A3 (1 Konto/Proxy, kein Wechsel nach Gen), C4/C9. Getestet: compileall ok, Topps-Selftest 4/4.
+
+## WEITER
+Naechste Phase laut VORGEHEN.txt: B Amazon-Generator (non-PVA, mehrere Catch-All-Domains,
+ADDRESS-Modus in 2. Session, Selftest).
