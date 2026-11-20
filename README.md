@@ -12,17 +12,37 @@ Start: `START.bat` oder `python baki.py` (Banner + Menue 1-14). Als fertige EXE:
 
 ## Start und Menue
 
-Menueplatz | Modul
+Menueplatz | Modul | Art
 ---|---
-1 | Topps EU (Monitor + Checkout)
-2 | Nike Account Generator
-3 | Amazon Account Generator
-4 | Riftbound Account Generator
-5 | Pokemon Center (Monitor + Checkout)
-6 | Toolbox (Proxy/Captcha/Webhook-Tests)
-7-14 | frei (Platzhalter)
+1 | Topps EU | Shopify (Monitor + Checkout)
+2 | Pokemon Center | eigener Monitor + Checkout
+3 | Nike Account Generator | Generator
+4 | Amazon Account Generator | Generator
+5 | Riftbound Account Generator | Generator
+6 | PlayStation DE | Nicht-Shopify (Sitemap + Queue-it)
+7 | MediaMarkt | Nicht-Shopify (Sitemap + Checkout)
+8 | Saturn | Nicht-Shopify (Sitemap + Checkout)
+9 | Nike SNKRS | Nicht-Shopify (Browser, Akamai)
+10 | Smyths Toys | Nicht-Shopify (Sitemap + Checkout)
+11 | Shopify generisch | Shopify (config/shopify_sites.txt)
+12 | Toolbox | Proxy/Captcha/Webhook-Tests
+13-14 | frei | Platzhalter
 
 Auswahl 0 beendet das Menue. Jedes Modul hat ein eigenes Untermenue.
+
+## Architektur
+
+Die Module liegen unter `modules/`:
+
+- `shopify_core.py` - gemeinsame Shopify-Engine (Session, Storefront-/Sitemap-Quellen,
+  hCaptcha via CapSolver, Queue-it-Erkennung, HTTP- und Browser-Checkout, Monitor,
+  Orchestrator). Modulname ueber `MODULE` gesetzt. `topps.py` und `shopify.py` nutzen sie.
+- `retail_core.py` - gemeinsame Basis fuer Nicht-Shopify-Shops (Monitor + Browser-Checkout).
+  `psn.py`, `mediamarkt.py`, `saturn.py`, `snkrs.py`, `smyths.py` bauen darauf.
+- `baki.py` verdrahtet die 14 Menueplaetze; Importe passieren erst bei Auswahl.
+
+Je Modul gibt es eigene Unterordner `accounts\<modul>\` (Profile) und `proxies\<modul>\`
+(Proxy-Listen, Zeilenformat `http://user:pass@host:port`).
 
 ## Topps EU (Platz 1)
 
@@ -31,8 +51,9 @@ Erkennen neuer Produkte via Sitemap und Storefront-API, Discord-Alerts ueber Web
 Checkout-Vorbereitung.
 
 - Setup beim ersten Start: Menuepunkt "Setup" fuellt `config/keys.env`
-  (Captcha-Provider/-Key, Discord-Webhook) und `config/profiles.yaml` (Adressen/Karten).
-- Selftest: prüft Profile und Host-Erreichbarkeit.
+  (Captcha-Provider/-Key, Discord-Webhook) und `accounts\topps\profiles.yaml`
+  (Adressen/Karten; je Modul ein eigener Profil-Ordner).
+- Selftest: prueft Profile und Host-Erreichbarkeit.
 - Modi: `cart` (wenig Daten, Checkout-Link) / `browser` (Fallback mit Playwright).
 - Karte per API = `--card-http`, experimentell.
 
@@ -58,9 +79,11 @@ eine CHECKOUT-Nachricht mit dem Link an den Discord-Webhook.
   intervalle, Captcha, Queue und Notification. Beide sind gueltig; die YAML ist die Quelle
   fuer `Settings.load()`.
 - `config/keys.env` - Schluessel (wird vom Setup-Wizard geschrieben, nicht in git).
-- `config/profiles.yaml` - Profile; versteht auch das Identitaets-Format (street + house_no).
+- `accounts/<modul>/profiles.yaml` - Profile je Modul; versteht auch das
+  Identitaets-Format (street + house_no). Fallback: `config/profiles.yaml`.
 - `config/targets.yaml` - Monitoring-Ziele mit Match-/Task-Parametern.
-- `config/proxy.txt` - Proxy-Liste (eine je Zeile).
+- `config/shopify_sites.txt` - Domains fuer das generische Shopify-Modul (Platz 11),
+  eine je Zeile. `config/proxy.txt` ist der globale Proxy-Fallback.
 
 ## Fehler und Logs
 
