@@ -1,0 +1,9 @@
+.venv/
+dist/
+build/
+var/
+__pycache__/
+*.spec
+config/keys.env
+config/profiles.yaml
+release.zip

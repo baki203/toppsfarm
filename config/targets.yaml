@@ -1,0 +1,7 @@
+﻿# Optional: harte Ziele. Ohne Eintrag laeuft Watch auf alles.
+- name: "Chrome UEFA"
+  match: "chrome-uefa"
+  hosts: [de.topps.com]
+  quantity: 1
+  mode: cart
+  tasks: 10

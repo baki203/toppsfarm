@@ -1,0 +1,1 @@
+﻿# proxy.txt - eine Zeile pro Proxy: http://user:pass@host:port
