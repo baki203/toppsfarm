@@ -37,7 +37,7 @@ def banner() -> str:
         text.encode(sys.stdout.encoding or "ascii")
     except (UnicodeError, LookupError):
         text = BANNER_ASCII
-    return "\n" + text.strip("\n") + "\n"
+    return "\n" + text.strip("\n").rstrip() + "\n"
 
 
 def show_menu() -> None:
