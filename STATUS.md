@@ -153,3 +153,30 @@ Ergebnis: erledigt. Build laeuft ohne Traceback durch (Exit-Code 0).
 - Die Exe wurde dabei NICHT neu geschrieben: PyInstaller hat PYZ/PKG/EXE nur geprueft und als aktuell befunden (Build-Cache, toppsfarm.py seit dem letzten Build unveraendert). `dist\toppsfarm.exe` ist weiterhin die Datei vom zweiten Durchlauf: 60285173 Bytes, 20.11.2026 02:45:37.
 - Auffaellig: PyInstaller meldet als Python-Umgebung `C:\Users\sargo\Desktop\topps bot\toppsfarm\.venv`, nicht den `.venv`-Ordner unter `Downloads\toppsfarm`. Der Build funktioniert, die venv zeigt aber auf den alten Pfad.
 Fehler: keine.
+
+
+## Schritt 4 - Selftest der Exe, neuer Durchlauf + Diagnose-Matrix (2026-11-20)
+Selftest `.\dist\toppsfarm.exe selftest` (Exit-Code 0, kein Traceback), Host-Zeilen woertlich:
+```
+--- de.topps.com (403)
+--- shop-de.topps.com (403)
+--- es.topps.com (403)
+--- fr.topps.com (403)
+--- it.topps.com (403)
+--- nl.topps.com (DNSError)
+--- at.topps.com (DNSError)
+--- be.topps.com (DNSError)
+--- pl.topps.com (Timeout)
+--- shop-uk.topps.com (403)
+```
+de.topps.com liefert weiter 403, kein products-JSON.
+
+Diagnose-Matrix aus ORDERS.md, Skript `diag_cf.py` (curl_cffi 0.17.0, kein Proxy, kein Browser, je Variante genau eine Anfrage).
+Spalten: Variante | Status | http (curl-Enum: 2 = HTTP/1.1, 3 = HTTP/2) | content-type | Groesse | Inhalt.
+
+### Matrix 1 - minimale Header
+Nur `accept` und `accept-language` selbst gesetzt, Rest vom impersonate.
+```
+minimal-header chrome /products.json | 403 | http=3 | text/html; charset=UTF-8 | 5683 B | title=Attention Required! | Cloudflare
+```
+Ergebnis: 403. Die selbst gesetzten Header (user-agent Chrome 131, sec-ch-ua, x-requested-with) sind nicht die Ursache.
