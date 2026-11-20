@@ -126,10 +126,27 @@ Stand 2026-11-20, ARBEITSWEISE (8 Punkte) + 4 QUALITY-Luecken. Deutsch. Je Punkt
    (api.nike.com/.../threads) ueber Proxy 404 (Akamai) - Drop-Zeit daher aus HTML/__NEXT_DATA__;
    echter Entry braucht aktiven Launch + echte Nike-Credentials (accounts/*.txt sind generator-artefakte).
 
+## Stand Punkte
+19 PHASE D+E+F RETAIL/SHOPIFY: erledigt (soweit nicht extern blockiert).
+   D: cf_refresh jetzt proxy-gebunden (cf_clearance ist IP-gebunden; Browser laeuft durch
+   denselben Proxy, damit Cookies zu curl_cffi-Requests passen). products.json bleibt 403,
+   weil die Proxy-IPs von Cloudflare domainspezifisch geblockt werden (Homepage 403, Sitemap
+   200, Storefront-API 200 - externer Proxy-Reputations-Blocker, kein Code-Fehler). Shopify
+   Guest-Checkout ueber Storefront-cartCreate GETESTET live ueber Proxy: echter Checkout-Link
+   https://shop-de.topps.com/cart/c/... (Variante 51178597613808, 9.99 EUR). E: PokemonCenter
+   Settings-Feld pokemon_hosts (www.pokemoncenter.com + /de-de + /en-gb), Monitor nutzt
+   Default beide Stores; Queue-it-Erkennung per Unit-Test gruen (queueclient.js/knowntoken).
+   PokemonCenter selbst 403 ueber Proxy-IP (extern). F: RetailCheckout._dismiss_consent
+   (Consent-Wall wegklicken, dt/EN-Selektoren) + _jsonld (Product/Offer, Preis+Availability);
+   live MediaMarkt-Checkout ok (consent weg, checkout vorbereitet, 0% Sperrquote).
+   F: RetailMonitor._last_status + banned:http-Zaehlung (401/403/429) - MediaMarkt/Saturn/
+   Smyths setzen _last_status; MediaMarkt 200 items, Saturn 200 items, Smyths 200 status.
+   compileall sauber. Committet.
+
 ## WEITER
-Naechste Phase laut VORGEHEN.txt: D Topps products.json 200 (Cloudflare-403 loesen: Session im
-Browser oeffnen, Cookies extrahieren, an curl_cffi uebergeben) + D Shopify Guest-Checkout.
-Offen: echter PSN-Anmeldetest braucht echte Credentials; Amazon ACO/Reset/Farmer/Invites brauchen
-echte eingeloggte Browser-Session (Session Manager); de.topps products.json/Storefront-GraphQL
-ueber Proxy 403 (Cloudflare) - Storefront-Weg fuer Checkout-Link funktioniert; volle 1000er-
-Proxy-Vorpruefung (~40 min) nur in Background/Chunks.
+Naechste Phase laut VORGEHEN.txt: G release.zip bauen + Release-Tag pushen.
+Offen: echter PSN-Anmeldetest braucht echte Credentials; Amazon ACO/Reset/Farmer/Invites
+brauchen echte eingeloggte Browser-Session (Session Manager); de.topps products.json und
+PokemonCenter ueber Proxy-IP 403 (Cloudflare-Proxy-Reputations-Blocker, Sitemap/Storefront
+funktionieren); voller Nike-Draw-Entry braucht aktiven Launch + echte Credentials; volle
+1000er-Proxy-Vorpruefung (~40 min) nur in Background/Chunks.

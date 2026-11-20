@@ -51,7 +51,11 @@ class RetailMonitor:
         changed = False
         try:
             self.q.increment("attempts")
+            self._last_status = 0
             items = await self.fetch(s, host)
+            # F: Cloudflare/Accountharvester-403 als banned:http zaehlen
+            if getattr(self, "_last_status", 0) in (401, 403, 429):
+                self.q.banned("http", str(getattr(self, "_last_status", 0)))
             for item in items:
                 changed |= await self._feed(host, item)
         except Exception as exc:

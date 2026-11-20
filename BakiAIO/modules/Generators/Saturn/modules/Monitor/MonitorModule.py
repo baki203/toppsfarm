@@ -16,6 +16,7 @@ class SaturnMonitor(RetailMonitor):
         try:
             idx = await s.get(f"https://{host}/sitemaps/sitemap-index.xml",
                               headers=base_headers(self.cfg))
+            self._last_status = idx.status_code
             if idx.status_code != 200:
                 return items
             subs = [l for l in re.findall(r"<loc>([^<]+)</loc>", idx.text)

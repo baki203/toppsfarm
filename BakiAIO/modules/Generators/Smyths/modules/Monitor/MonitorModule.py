@@ -18,6 +18,7 @@ class SmythsMonitor(RetailMonitor):
         items = []
         try:
             r = await s.get(f"https://{host}/sitemap.xml", headers=base_headers(self.cfg))
+            self._last_status = r.status_code
             if r.status_code != 200:
                 return items
             for m in re.findall(r"<loc>([^<]+/product/[^<]+)</loc>", r.text):
