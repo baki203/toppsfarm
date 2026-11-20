@@ -16,6 +16,9 @@ Stand: 2026-11-20, Aufgaben 1-7 aus AGENTS.md + Nachgereichtes.
 - Webhook-Test: POST {"content":"Baki AIO Test"} -> HTTP 204 (ok).
 - cart-Test 1 Task (de.topps.com, variant 51178597613808): Task 3 'ok' mit Checkout-Link (shop-de.topps.com/...). Orchestrator sendet CHECKOUT-Nachricht an Discord. Ein weiterer Task 'fail' (warmup).
 
+## CSV-Import
+- Neu: tools/import_profiles.py. Liest "Zahlungen - Kopie.csv" (UTF-8 mit BOM), Mapping shipping/* + cc/* + email + checkoutLimit nach profiles.yaml, Tabs entfernt, Karte ohne Leerzeichen, max_orders 0->2, Zeilen ohne Kartennummer uebersprungen, id p01/p02... Aufruf: `python tools/import_profiles.py <csv> [ziel]`. Test: 1 Profil importiert (p01, Sargbon Akfcan, Karte 9999999999991817, max_orders 2). Fix: CLI-Index argv[0]=Quelle.
+
 ## Profil-Generator
 - Neu: core/profiles.py (generate_profiles, write_profiles) und CLI `toppsfarm.py profiles-gen --count N [--seed S] [--out DATEI]`. Erzeugt N Profile aus IdentityGenerator, id p01/p02/..., max_orders 2, leere Karte, schreibt config/profiles.yaml. Test N=3 seed=7 in temp. Datei: p01 Dominik Lang, p02 Klaus Marx, p03 Anja Braun, leere Karten, laedt via _row_to_profile (nur 'karte'-Warnung, erwartet).
 
