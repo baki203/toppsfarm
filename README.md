@@ -85,6 +85,21 @@ eine CHECKOUT-Nachricht mit dem Link an den Discord-Webhook.
 - `config/shopify_sites.txt` - Domains fuer das generische Shopify-Modul (Platz 11),
   eine je Zeile. `config/proxy.txt` ist der globale Proxy-Fallback.
 
+## Qualitaet und Sperrmessung (QUALITY.md)
+
+Qualitaetspruefliste mit Ja/Nein-Punkten (Catch-All statt Wegwerf-Mail, persistentes
+Browserprofil je Konto, sticky Wohn-IP je Konto, IP-Land/Region zur Adresse, Adressvariation,
+Browsen vor Registrierung, Adresse erst in zweiter Session, Karte erst beim Kauf, Erstkauf
+klein/zeitversetzt, Telefon nur bei Aufforderung) und den Quellen darunter (`KNOWLEDGE.md`).
+
+Jedes Modul fuehrt Zaehler: `attempts`, `success`, `banned` (je Sperr-Typ), `retries` und meldet
+am Ende Versuche, Erfolge, Sperren und die **Sperrquote in Prozent** (Warnung ab >25%). Die Werte
+werden in `var/quality.sqlite` persistiert. Der kumulierte Stand je Modul per CLI:
+
+```bat
+.venv\Scripts\python.exe -m modules.topps quality
+```
+
 ## Fehler und Logs
 
 - Ein unbehandelter Traceback wird beim Start nach `crashlog.log` geschrieben (Hook in baki.py).

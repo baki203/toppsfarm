@@ -11,12 +11,13 @@ Stand 2026-11-20, ARBEITSWEISE (8 Punkte). Deutsch. Je Punkt: Test + STAND.md + 
 4 MENUE: erledigt (14 Plaetze, Belegung aus altem STAND).
 5 SHOPIFY-KERN: erledigt (shopify_core.py, topps.py Wrapper, shopify.py generisch).
 6 NICHT-SHOPIFY: erledigt (retail_core.py + psn/mediamarkt/saturn/snkrs/smyths).
-7 TEST+BUILD: (offen, wird am Ende erneut)
+7 TEST+BUILD: erledigt. Topps 4/4, generisches Shopify via storefront (200), Retail-Dryruns MediaMarkt+Saturn -> /de/checkout, de.topps Storefront-cartCreate -> echter CHECKOUT-Link, release.zip 57 MB neu gebaut + EXE-Selftest 4/4 gruen, README um QUALITY ergaenzt. Committet.
 8 REIHENFOLGE: 2,3 -> 5 -> 4,6 -> 7. 5 vor 6 bei Zeitdruck.
 
 ## Erledigt (belegt, kompakt)
-- Topps-Selftest 4/4 gruen; Menu 1-14 startet; MediaMarkt-Dryrun -> /de/checkout; release.zip (59,8 MB) getestet.
+- Menu 1-14 (alle 12 belegt, 13-14 Platzhalter) startet; alle Modul-Factories instanziieren; EXE menu-only.
+- Topps-Selftest 4/4 gruen; MediaMarkt+Saturn-Dryrun -> /de/checkout; release.zip (57 MB, ohne secrets) getestet.
 - Analyse-Werkzeuge: pyinstxtractor-ng (venv), UPX (winget). Main-EXE = .NET-Launcher (.fptable, 1x MZ); UPX/NSIS-Marker false positive; Inbox-EXE = Tauri (inbox.skyridge.eu).
 
 ## Naechster Schritt
-Punkt 3: QUALITY.md schreiben (Ja/Nein-Pruefliste + Messpunkte Sperren/Sperrquote je Modul), commit+push. Danach Punkt 7 (Test+Build wiederholen, README ergaenzen).
+Alle 8 Punkte erledigt. Optional: NBA/Angebote, E2E-Orchestrator-Test mit Discord-Webhook, Release pushen (tag).
