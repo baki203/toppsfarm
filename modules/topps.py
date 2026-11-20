@@ -1184,6 +1184,10 @@ def main(argv=None):
     for c in ("setup", "selftest", "profiles-check", "stats", "install-browser",
               "cf-refresh"):
         sub.add_parser(c)
+    g = sub.add_parser("profiles-gen")
+    g.add_argument("--count", type=int, default=1)
+    g.add_argument("--seed", type=int, default=None)
+    g.add_argument("--out", default=None)
     w = sub.add_parser("watch")
     w.add_argument("--mode", default="cart", choices=["cart", "browser"])
     w.add_argument("--hosts", default="")
@@ -1221,6 +1225,11 @@ def main(argv=None):
             CONSOLE.print(f"{p.id}: {'ok' if not iss else ','.join(iss)}")
     elif a.cmd == "stats":
         CONSOLE.print(asyncio.run(state.stats()))
+    elif a.cmd == "profiles-gen":
+        from core.profiles import generate_profiles, write_profiles
+        rows = generate_profiles(max(1, a.count), a.seed)
+        dest = write_profiles(rows, Path(a.out) if a.out else None)
+        CONSOLE.print(f"[green]{len(rows)} Profile nach {dest}[/]")
     elif a.cmd == "cf-refresh":
         host = cfg.hosts[0] if cfg.hosts else "de.topps.com"
         out = asyncio.run(cf_refresh(host))
