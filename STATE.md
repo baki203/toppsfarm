@@ -1,5 +1,4 @@
 # STATE (nach Schritt 15b, erneut geprueft, 2026-11-20)
-
 Stand:
 - 15a und 15b abgehakt: core/ und modules/ mit leerer __init__.py; modules/base.py mit `BaseModule.run(self)` (wirft NotImplementedError), Import getestet.
 - Aus frueheren Laeufen schon vorhanden: baki.py mit Banner und Menue 1-14/0 (15c). In ORDERS.md noch offen, dort nur pruefen.
