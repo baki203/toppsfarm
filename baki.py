@@ -55,14 +55,50 @@ def _toolbox():
     return ToolboxModule()
 
 
+def _psn():
+    from modules.psn import PlayStationModule
+    return PlayStationModule()
+
+
+def _mediamarkt():
+    from modules.mediamarkt import MediaMarktModule
+    return MediaMarktModule()
+
+
+def _saturn():
+    from modules.saturn import SaturnModule
+    return SaturnModule()
+
+
+def _snkrs():
+    from modules.snkrs import SNKRSModule
+    return SNKRSModule()
+
+
+def _smyths():
+    from modules.smyths import SmythsModule
+    return SmythsModule()
+
+
+def _shopify():
+    from modules.shopify import ShopifyGenericModule
+    return ShopifyGenericModule()
+
+
 # Menueplatz -> (Text, Fabrik fuer das Modul). Freie Plaetze fehlen hier.
 MODULES = {
     1: ("Topps EU", _topps),
-    2: ("Nike Account Generator", _nike),
-    3: ("Amazon Account Generator", _amazon),
-    4: ("Riftbound Account Generator", _riftbound),
-    5: ("Pokemon Center", _pokemon),
-    6: ("Toolbox", _toolbox),
+    2: ("Pokemon Center", _pokemon),
+    3: ("Nike Account Generator", _nike),
+    4: ("Amazon Account Generator", _amazon),
+    5: ("Riftbound Account Generator", _riftbound),
+    6: ("PlayStation DE", _psn),
+    7: ("MediaMarkt", _mediamarkt),
+    8: ("Saturn", _saturn),
+    9: ("Nike SNKRS", _snkrs),
+    10: ("Smyths Toys", _smyths),
+    11: ("Shopify generisch", _shopify),
+    12: ("Toolbox", _toolbox),
 }
 
 # Hardcode-Fallback 1: ansi_shadow, fest eingetragen (falls pyfiglet oder der Font fehlt).

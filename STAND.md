@@ -41,9 +41,9 @@ Baki AIO: Windows-Python-Tool mit Menue 1-14. Platz 1 ist das Topps-Modul (topps
 
 ## ARBEITSWEISE (laeuft)
 1. STRUKTUR-ABGLEICH erledigt: je Modul Unterordner in accounts/ + proxies/ (topps, pokemoncenter, nike, amazon, riftbound, psn, mediamarkt, saturn, snkrs, smyths, shopify), je .gitkeep + README.txt (Format http://user:pass@host:port). Commit 036d78c.
-2. MENUE (laeuft): baki.py auf 14 Plaetze, Belegung: 1 Topps EU, 2 PokemonCenter, 3 Nike Gen, 4 Amazon Gen, 5 Riftbound Gen, 6 PlayStation DE, 7 MediaMarkt, 8 Saturn, 9 Nike SNKRS, 10 Smyths Toys, 11 Shopify generisch, 12 Toolbox, 13-14 Platzhalter.
+2. MENUE erledigt: baki.py auf 14 Plaetze (Commit folgt). Belegung: 1 Topps EU, 2 PokemonCenter, 3 Nike Gen, 4 Amazon Gen, 5 Riftbound Gen, 6 PlayStation DE, 7 MediaMarkt, 8 Saturn, 9 Nike SNKRS, 10 Smyths Toys, 11 Shopify generisch, 12 Toolbox, 13-14 Platzhalter.
 3. SHOPIFY-KERN erledigt: `modules/shopify_core.py` (Shopify-Engine aus topps.py extrahiert, MODULE-parametrisiert, generischer `main()` + `ShopifyModule` + `argv_parser`); topps.py dient jetzt als duenner Wrapper (Selftest 4/4 gruen); generisches Modul `modules/shopify.py` liest Domains aus `config/shopify_sites.txt` (de.topps.com getestet: 200). toolbox.py/pokemoncenter.py importieren aus shopify_core.
-4. NICHT-SHOPIFY-MODULE (offen): PSN DE, MediaMarkt, Saturn, Nike SNKRS, Smyths.
+4. NICHT-SHOPIFY-MODULE erledigt: `retail_core.py` (gemeinsame Basis: Monitor, Queue-it, Browser-Checkout), psn.py (Sitemap-Index + Drop-Marker buy-now/register-to-buy, 8 Items), mediamarkt.py + saturn.py (Produktdetail-Sitemaps, je letzte Teil-Sitemap 200 URLs; Checkout-Dryrun liefert /de/checkout), snkrs.py (Productfeed, Akamai blockt HTTP, Browser-Fallback), smyths.py (WAF blockt HTTP, Browser-Fallback). Alle Module im Menue instanziierbar.
 5. TEST UND BUILD (offen): Modul-Tests + release.zip + README.
 
 ## Offene Punkte (Prioritaet)
