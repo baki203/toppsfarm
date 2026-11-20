@@ -3,6 +3,7 @@ Stand 2026-11-20, ARBEITSWEISE (8 Punkte). Deutsch. Je Punkt: Test + STAND.md + 
 
 ## BLOCKER
 - Skyridge-GitBook auth-geschuetzt (SPA nur JS-Shell, Content-API 403, kein Wayback-Mirror). Erkenntnisse stattdessen aus lokaler settings.json + crashlog.log (PyInstaller-Tracebacks) + PepperScripts-Doku.
+- VENICE: keys.env ergaenzt (VENICE_API_KEY, VENICE_MODEL=xiaomi-mimo-v2-6-flash), keine Windows-Env geaendert. Auftrag "discord/auswerten.py" (Vorfilter/Stueckzahl/Kostenschaetzung/Teststueck) hier nicht vorhanden - stammt aus anderem Chat ohne uebernommenen Verlauf. BLOCKED: Kontext fehlt.
 
 ## Stand Punkte
 1 STRUKTUR: erledigt. accounts\ + proxies\ je Modul (topps, pokemoncenter, nike, amazon, riftbound, psn, mediamarkt, saturn, snkrs, smyths, shopify), je .gitkeep + README.txt (Format http://user:pass@host:port). Verifiziert.
