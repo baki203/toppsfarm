@@ -14,6 +14,30 @@ CRASHLOG = Path(__file__).resolve().parent / "crashlog.log"
 CrashLogger(CRASHLOG).install()
 
 
+def _auto_update() -> None:
+    """EXE-Auto-Update: Ist neben der laufenden BakiAIO.exe eine BakiAIO.exe.new
+    abgelegt (z. B. nach einem Neu-Build), ersetzt dieser Aufruf sie und meldet es.
+    Onefile entpackt sich nach _MEIPASS, daher ist die Datei am Original-Pfad
+    waehrend der Laufzeit ersetzbar. Im Source-Betrieb (kein frozen) keine Aktion."""
+    try:
+        if not getattr(sys, "frozen", False):
+            return
+        exe = Path(sys.executable)
+        new = exe.with_name(exe.name + ".new")
+        if not new.exists():
+            return
+        backup = exe.with_name(exe.name + ".old")
+        import os
+        try:
+            os.replace(exe, backup)   # laufende EXE wegsichern
+            os.replace(new, exe)      # neue Version an den Platz
+        except OSError:
+            return
+        print(" Update: neue BakiAIO.exe installiert. Bitte erneut starten.")
+    except Exception:
+        pass
+
+
 def _topps():
     # Import erst bei Auswahl, damit das Menue sofort erscheint.
     from modules.Generators.Topps.modules.Drop.DropModule import ToppsModule
@@ -156,6 +180,7 @@ def menu() -> int:
 
 
 def main() -> int:
+    _auto_update()
     return menu()
 
 

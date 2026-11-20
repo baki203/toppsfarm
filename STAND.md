@@ -78,6 +78,13 @@ Stand 2026-11-20, ARBEITSWEISE (8 Punkte) + 4 QUALITY-Luecken. Deutsch. Je Punkt
    Login-Formular korrekt, note 'login moeglicherweise fehlgeschlagen' (Test-Credentials). BLOCKER:
    echter Anmeldetest nur mit echten PSN-Credentials moeglich (liegen nicht vor).
 
+## Stand Punkte
+15 RELEASE + EXE-AUTO-UPDATE: erledigt. baki.py: _auto_update() ersetzt beim Start die laufende
+   BakiAIO.exe durch eine daneben abgelegte BakiAIO.exe.new (nur wenn sys.frozen, sichere alte als
+   .old). spec auf BakiAIO\\baki.py umgestellt. EXE 60MB gebaut; EXE-Selftest 4/4 gruen (de/es/fr/it
+   200), alle Module (Topps/PSN/Toolbox) in der EXE geladen. release.zip (60MB) neu gebaut und getestet
+   (Menue startet). Keine Secrets in EXE. Committet.
+
 ## WEITER
 Naechste Phase laut VORGEHEN.txt: B Amazon-Generator (non-PVA, mehrere Catch-All-Domains,
-ADDRESS-Modus in 2. Session, Selftest). Plus: 15 release.zip + EXE-Auto-Update.
+ADDRESS-Modus in 2. Session, Selftest). Offen: echter PSN-Anmeldetest braucht echte Credentials.
