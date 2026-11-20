@@ -616,3 +616,48 @@ Fehler: keine.
 
 Offen (unveraendert, nicht Teil von 15b):
 - `modules/topps_module.py` importiert `Action, Module` aus `modules.base` (gibt es nicht) -> laeuft nicht, gehoert zu 15d.
+
+## Schritt 15c - baki.py: Banner, Menue 1-14 und 0, Auswahl per input (erneuter Lauf, 2026-11-20)
+Ergebnis: erledigt, keine Aenderung am Code noetig.
+- `baki.py` ist im Repo und erfuellt den Auftrag bereits:
+  - Banner per `pyfiglet.figlet_format("BAKI AIO", font="ansi_shadow", width=200)`.
+  - Hardcode-Fallback: derselbe ansi_shadow-Banner fest im Quelltext (`BANNER_SHADOW`), wenn pyfiglet oder der Font fehlt; dazu `BANNER_ASCII`, wenn die Ausgabe-Codierung die Blockzeichen nicht kann.
+  - Menue: Plaetze 1-14 (alle noch `-`) und `0  Ende`, Auswahl per `input(" Auswahl: ")`.
+  - 1-14 -> ` N: noch nicht belegt.`, alles andere -> ` Ungueltige Auswahl.`, danach Menue erneut; 0 / EOF / Strg+C -> Ende mit Exitcode 0.
+- pyfiglet 1.0.4 ist in der `.venv` installiert und steht in `requirements.txt` (`pyfiglet>=1.0`).
+- In ORDERS.md 15c auf `[x]` gesetzt. Keine neuen Schritte angehaengt, 15c ist nicht blockiert.
+
+Tests mit `.venv\Scripts\python.exe`, Eingabe per Pipe:
+- `py_compile baki.py`: ohne Fehler.
+- Eingabe `3`, `x`, `0` mit `PYTHONIOENCODING=utf-8`, Ausgabe woertlich, gekuerzt auf einen Menue-Durchlauf:
+```
+
+██████╗  █████╗ ██╗  ██╗██╗     █████╗ ██╗ ██████╗
+██╔══██╗██╔══██╗██║ ██╔╝██║    ██╔══██╗██║██╔═══██╗
+██████╔╝███████║█████╔╝ ██║    ███████║██║██║   ██║
+██╔══██╗██╔══██║██╔═██╗ ██║    ██╔══██║██║██║   ██║
+██████╔╝██║  ██║██║  ██╗██║    ██║  ██║██║╚██████╔╝
+╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝    ╚═╝  ╚═╝╚═╝ ╚═════╝
+
+ ==================================================
+   1  -
+   ...
+  14  -
+   0  Ende
+ ==================================================
+ Auswahl:  3: noch nicht belegt.
+ Auswahl:  Ungueltige Auswahl.
+ Auswahl: exit=0
+```
+- Eingabe `15`, `14`, `0`: ` Ungueltige Auswahl.`, ` 14: noch nicht belegt.`, Ende.
+- Ohne pyfiglet (`sys.modules['pyfiglet']=None`): `banner()` liefert den fest eingetragenen ansi_shadow-Banner, identisch mit `BANNER_SHADOW`.
+- Mit `PYTHONIOENCODING=cp1252`: ASCII-Banner erscheint, Menue danach normal.
+- Leere Eingabe (EOF): `exit=0`.
+
+Fehler: keine.
+
+Offen (unveraendert, nicht Teil von 15c):
+- Nicht im echten Konsolenfenster geprueft, nur per Pipe. Ob dort ansi_shadow oder der ASCII-Banner erscheint, haengt von der Konsolen-Codierung ab.
+- Die Zeilen des pyfiglet-Banners enden auf Leerzeichen (der Hardcode-Banner nicht). Rein optisch, nicht geaendert.
+- `baki.py` ignoriert Argumente; `START.bat` ruft noch `baki.py topps setup` auf (15d/15e).
+- `modules/topps_module.py` importiert `Action, Module` aus `modules.base` (gibt es nicht) -> laeuft nicht (15d).
