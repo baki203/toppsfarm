@@ -180,6 +180,14 @@ Stand 2026-11-20, ARBEITSWEISE (8 Punkte) + 4 QUALITY-Luecken. Deutsch. Je Punkt
    Invite-Request/Checkout braucht eingeloggte Session (Anti-Bot) - ueber
    Session Manager (nur User kann Captcha/OTP loesen) herstellen.
 
+## Stand Punkte
+23 AMAZON SESSION-SYNC: erledigt. Session Manager exportiert nach erfolgreichem
+   Login die Browser-Cookies in den SessionStore (AmazonBrowser.export_cookies ->
+   var/sessions/amazon/<email>/cookies.json). Damit koennen die HTTP-Module
+   (Invites, Farmer, Invite Checker) per c.restore() dieselbe Session wiederher-
+   stellen, ohne sich neu einzuloggen (Skyridge-Verhalten). Getestet: compileall 0,
+   export_cookies vorhanden, restore() laedt SessionStore-Cookies korrekt.
+
 ## WEITER
 Offen: echter PSN-Anmeldetest braucht echte Credentials; Amazon echte Invite-Request/
 Checkout/ACO braucht eingeloggte Session via Session Manager (nur User kann Captcha/

@@ -410,10 +410,14 @@ class AmazonAIOModule:
                                      headless=False, log=log) as b:
                 ok = await b.restore_or_login()
                 if ok:
+                    # Cookies in den SessionStore exportieren, damit die
+                    # HTTP-Module (Invites/Farmer/Checker) dieselbe Session
+                    # wiederherstellen koennen, ohne sich neu einzuloggen.
+                    await b.export_cookies()
                     await b.page.goto(f"https://{domain_for(cc)}/",
                                       wait_until="domcontentloaded", timeout=40000)
                     log.status("restored")
-                    log.line("Session", "", email, "Session restored!", "ok")
+                    log.line("Session", "", email, "Session restored! (Cookies gespeichert)", "ok")
                     if keep_open:
                         print(paint(f"    Browser offen fuer {email} - manuell navigieren. "
                                     "Enter fuer naechstes Konto.", "dim"))

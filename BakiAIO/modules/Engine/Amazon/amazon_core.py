@@ -501,6 +501,23 @@ class AmazonBrowser:
     async def __aexit__(self, *exc):
         await self.stop()
 
+    async def export_cookies(self) -> None:
+        """Schreibt die aktuellen Browser-Cookies in den SessionStore, damit
+        die HTTP-Module (Invites/Farmer/Checker) dieselbe Session wiederher-
+        stellen koennen (Session Manager als einzige Login-Quelle)."""
+        try:
+            ctx = self.browser.browser if self.browser else None
+            if not ctx:
+                return
+            cookies = []
+            for c in await ctx.cookies():
+                cookies.append({"name": c.get("name", ""), "value": c.get("value", ""),
+                                "domain": c.get("domain", ""), "path": c.get("path", "/")})
+            if cookies:
+                await self.store.save_cookies(self.email, cookies)
+        except Exception:
+            pass
+
     # ---------------------------------------------------------------- Session
     async def restore_or_login(self) -> bool:
         """True, wenn eine Session aktiv (eingeloggt) oder der Login gelingt."""
