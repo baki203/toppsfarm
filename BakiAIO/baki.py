@@ -50,8 +50,8 @@ def _nike():
 
 
 def _amazon():
-    from modules.Generators.Amazon.modules.Invites.InvitesModule import AmazonModule
-    return AmazonModule()
+    from modules.Generators.Amazon.AmazonAIO import AmazonAIOModule
+    return AmazonAIOModule()
 
 
 def _riftbound():

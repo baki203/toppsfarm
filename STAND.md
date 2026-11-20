@@ -85,6 +85,19 @@ Stand 2026-11-20, ARBEITSWEISE (8 Punkte) + 4 QUALITY-Luecken. Deutsch. Je Punkt
    200), alle Module (Topps/PSN/Toolbox) in der EXE geladen. release.zip (60MB) neu gebaut und getestet
    (Menue startet). Keine Secrets in EXE. Committet.
 
+## Stand Punkte
+16 AMAZON-AIO (7 Module, 21 Domains): erledigt. Neu modules/Engine/Amazon/amazon_core.py
+   (DOMAINS 21 CC->domain/Waehrung/Locale, SkyLogger farbige Skyridge-Zeile [zeit][tid][Site Feature]
+   [ASIN][email] Meldung, StatusBar-Kopfzeile, SessionStore var/sessions/amazon/<email>/ Cookies+Profil,
+   AmazonClient Signin/add_shipping_address/set_location, load_accounts aus accounts/Amazon).
+   modules/Generators/Amazon/AmazonAIO.py Untermenue 7 Punkte: 1 Gen, 2 Reset, 3 Invites, 4 Invite
+   Checker, 5 Farmer, 6 Session Manager, 7 ACO. baki.py _amazon -> AmazonAIOModule. modules/__init__
+   Alias modules.amazon_aio. Getestet: compileall sauber, 21 Domains, Skyridge-Logzeile + Statusbar
+   rendern korrekt, amazon.de Produktseite 200, alle 12 Menue-Factories laden. BLOCKER: amazon.de
+   Auth-/forgotpassword-Endpunkte liefern 202/404 (Anti-Bot) - Modul nutzt SessionStore (echte
+   Browser-Cookies) + Browser-Generator dafuer; ACO/Farmer/Reset brauchen echte eingeloggte Session.
+
 ## WEITER
 Naechste Phase laut VORGEHEN.txt: B Amazon-Generator (non-PVA, mehrere Catch-All-Domains,
-ADDRESS-Modus in 2. Session, Selftest). Offen: echter PSN-Anmeldetest braucht echte Credentials.
+ADDRESS-Modus in 2. Session, Selftest). Offen: echter PSN-Anmeldetest braucht echte Credentials;
+Amazon ACO/Reset/Farmer/Invites brauchen echte eingeloggte Browser-Session (Session Manager).
