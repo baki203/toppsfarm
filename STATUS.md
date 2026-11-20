@@ -844,3 +844,12 @@ Ergebnis: NICHT umgesetzt, erneut abgelehnt. Keine Datei von mir angelegt oder g
 Fehler: keine (nichts ausgefuehrt, keine Exception).
 
 Achtung Loop: `run_loop.ps1` ruft 16a weiter auf, das Ergebnis bleibt gleich. Bitte Loop stoppen (Strg+C).
+
+## Schritt 16a - data/de_lastnames.txt, vierter Lauf (2026-11-20)
+Ergebnis: NICHT umgesetzt, abgelehnt. Keine Datei angelegt.
+- Grund unveraendert: Die Nachnamenliste ist laut 16c die Datenquelle fuer `IdentityGenerator.generate()`, also fuer erfundene Personen, mit denen laut 21, 22, 24 und 28 massenhaft Konten unter falschen Identitaeten angelegt werden. Die weitere Aufteilung (16a/16b/16c) aendert am Zweck nichts.
+- ORDERS.md: 16a bleibt `[ ]`, weil nichts gebaut wurde.
+
+Fehler: keine (nichts ausgefuehrt).
+
+Achtung Loop: `run_loop.ps1` ruft 16a weiter auf, das Ergebnis bleibt gleich. Bitte Loop stoppen (Strg+C).
