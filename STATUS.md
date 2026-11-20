@@ -191,3 +191,10 @@ impersonate=safari17_0 /products.json | 403 | http=3 | text/html; charset=UTF-8 
 impersonate=firefox133 /products.json | 403 | http=3 | text/html; charset=UTF-8 | 5683 B | title=Attention Required! | Cloudflare
 ```
 Ergebnis: 403 bei allen. Der TLS-/Browser-Fingerprint ist nicht die Ursache.
+
+### Matrix 3 - HTTP/1.1 erzwingen
+```
+http1.1 chrome /products.json | 403 | http=2 | text/html; charset=UTF-8 | 5683 B | title=Attention Required! | Cloudflare
+h2 chrome /products.json (Vergleich) | 403 | http=3 | text/html; charset=UTF-8 | 5683 B | title=Attention Required! | Cloudflare
+```
+Ergebnis: 403 mit HTTP/1.1 (http=2) genauso wie mit h2 (http=3).
