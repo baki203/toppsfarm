@@ -9,6 +9,7 @@ from core.browser import Browser
 from core.human import Human
 from core.identity import IdentityGenerator
 from core.mailbox import create_inbox, wait_for_link
+from modules.quality import Quality
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -26,6 +27,7 @@ class AccountGenerator:
         self.headless = headless
         self.seed = seed if seed is not None else random.SystemRandom().randint(0, 2**31)
         self.idgen = IdentityGenerator(seed=self.seed)
+        self.q = Quality(self.site)
 
     async def run(self) -> list[str]:
         d = ROOT / self.account_dir
@@ -36,14 +38,21 @@ class AccountGenerator:
         await browser.start()
         try:
             for _ in range(self.count):
+                self.q.increment("attempts")
                 ident = self.idgen.generate()
                 inbox = await create_inbox()
-                account = await self._register(browser, ident, inbox)
+                try:
+                    account = await self._register(browser, ident, inbox)
+                    self.q.success()
+                except Exception:
+                    self.q.banned(f"generator-{self.site}")
+                    continue
                 f = d / f"{ident.email}.txt"
                 f.write_text(_dump(account), encoding="utf-8")
                 made.append(str(f))
                 print(f"[{self.site}] angelegt: {ident.email} -> {f.name}")
         finally:
+            self.q.finish()
             await browser.stop()
         return made
 

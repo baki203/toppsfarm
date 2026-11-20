@@ -9,6 +9,7 @@ from urllib.parse import urljoin
 
 from modules.shopify_core import (ROOT, ENV, CONSOLE, Settings, State, Notifier,
                                   Solver, session, headers, queued)
+from modules.quality import Quality
 
 
 class RetailMonitor:
@@ -22,6 +23,11 @@ class RetailMonitor:
         self.hosts = hosts
         self.stop = asyncio.Event()
         self._seen: dict[str, set] = {}
+        self.q = Quality(self.name)
+
+    @property
+    def name(self):
+        return "retail"
 
     async def run(self):
         await asyncio.gather(*(self._loop(h) for h in self.hosts))
@@ -41,10 +47,13 @@ class RetailMonitor:
         s = session(self.cfg)
         changed = False
         try:
-            for item in await self.fetch(s, host):
+            self.q.increment("attempts")
+            items = await self.fetch(s, host)
+            for item in items:
                 changed |= await self._feed(host, item)
         except Exception as exc:
             print(f"[{self.name}] {host}: {type(exc).__name__}")
+            self.q.banned(str(exc))
         finally:
             await s.close()
         return changed
@@ -73,6 +82,7 @@ class RetailCheckout:
 
     def __init__(self, cfg, notifier, name="retail"):
         self.cfg, self.notifier, self.name = cfg, notifier, name
+        self.q = Quality(name)
 
     async def run(self, url: str, dry_run: bool = True) -> dict:
         from core.browser import Browser
@@ -80,6 +90,7 @@ class RetailCheckout:
         browser = Browser(headless=True, seed=random.randint(0, 2**31))
         await browser.start()
         res = {"ok": False, "note": "", "url": url, "order": None}
+        self.q.increment("attempts")
         try:
             page = await browser.new_page()
             await page.goto(url, wait_until="domcontentloaded", timeout=45000)
@@ -96,8 +107,14 @@ class RetailCheckout:
                 await page.goto(urljoin(page.url, target), wait_until="domcontentloaded",
                                 timeout=45000)
             res.update(ok=True, url=page.url, note="checkout vorbereitet")
+            self.q.success()
+            return res
+        except Exception as exc:
+            self.q.banned(str(exc))
+            res["note"] = type(exc).__name__
             return res
         finally:
+            self.q.finish()
             await browser.stop()
 
     async def _locate_checkout(self, page) -> str | None:
@@ -140,6 +157,8 @@ class RetailModule:
                     asyncio.run(mon.run())
                 except KeyboardInterrupt:
                     print()
+                finally:
+                    mon.q.finish()
             elif wahl == "2":
                 url = input(" URL: ").strip()
                 if url:

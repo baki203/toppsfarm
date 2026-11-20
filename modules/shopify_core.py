@@ -1225,7 +1225,7 @@ def argv_parser(prog: str = "baki", module: str | None = None):
     ap = argparse.ArgumentParser(prog=prog)
     sub = ap.add_subparsers(dest="cmd", required=True)
     for c in ("setup", "selftest", "profiles-check", "stats", "install-browser",
-              "cf-refresh"):
+              "cf-refresh", "quality"):
         sub.add_parser(c)
     g = sub.add_parser("profiles-gen")
     g.add_argument("--count", type=int, default=1)
@@ -1289,6 +1289,9 @@ def main(argv=None):
                           f"{', '.join(sorted(out))}[/]")
         else:
             CONSOLE.print("[red]Keine cf_clearance erhalten.[/]")
+    elif a.cmd == "quality":
+        from modules.quality import Quality
+        CONSOLE.print(Quality(MODULE).report())
     elif a.cmd == "selftest":
         asyncio.run(cmd_selftest(cfg, state, pool, notifier))
     elif a.cmd == "watch":
