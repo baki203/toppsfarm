@@ -20,6 +20,7 @@ Stand: 2026-11-20, Aufgaben 1-7 aus AGENTS.md + Nachgereichtes.
 - keys.env: CAPTCHA_PROVIDER, CAPSOLVER_KEY, DISCORD_WEBHOOK, DISCORD_WEBHOOK_ERRORS vorhanden (OK).
 - Webhook-Test: POST {"content":"Baki AIO Test"} -> HTTP 204 (ok).
 - cart-Test 1 Task (de.topps.com, variant 51178597613808): Task 4 'ok' mit Checkout-Link (shop-de.topps.com/...), Notiz 'storefront checkout-link'.
+- Kartendaten in config/profiles.yaml p01.card eingetragen (4165983470214727, 09/2029, 954, Sargon Akcan). Per Python geprueft: number gesetzt, issues []. 10 cart-Tasks auf de.topps.com (variant 51178597613808): 10/10 'ok' (Tasks 5-14). Erster Checkout-Link: shop-de.topps.com/cart/c/hWNJNCvKPGDdAoinUBABUWGp (Task 5).
 
 ## BLOCKER
 - products.json auf de.topps.com 403 auch mit Browser-Cookies (serverseitig); Storefront-API als Ersatz verdrahtet.
