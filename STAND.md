@@ -2,6 +2,14 @@
 
 Stand: 2026-11-20, Uebernahme durch neuen Agenten. Quelle: VERLAUF.md (7108 Zeilen, jetzt VERLAUF_archiv.md, einmalig gelesen).
 
+## SKYRIDGE-STRUKTUR (Referenz, nichts kopiert)
+Referenz: C:\Users\sargo\Desktop\SkyridgeSetup\SkyridgeSetup, 2 Ebenen:
+- Root: accounts/, proxies/, Address Toolbox/, crashlog.log, FirstNames.txt, LastNames.txt, settings.json, Skyridge-v0.41.3.5.exe, SkyridgeInbox.exe
+- accounts/<Modul>/: CSV je Status (gen_, custom_, tasks_, checked_, orders_, scraped_, farmed_, reset_, ...); Module: Adidas, Amazon, AOL, Argos, Bandai, Email Downloader/Scraper, FreeNet, General Toolbox, Gmail, GMX, ICloud, Nike, Oasis, Outlook, Pokemoncenter, Revolut, Riftbound, Seated, Target, Ticket, U2, Wallester, Walmart, WebDE, WTN, Yahoo (+ mailAccounts.csv)
+- proxies/<Modul>/: .txt Proxy-Dateien (byte premium/basic, flash, seamless, ...); Module identisch zu accounts, plus activity_proxies.txt
+- Namensschema: Modulname kapitalisiert (Nike, Amazon, Pokemoncenter), Dateien <status>_<Modul>Accounts.csv.
+- Wir uebernehmen: je Modul eigene Unterordner in accounts\ und proxies\, .gitkeep + README.txt je Ordner (Zeilenformat http://user:pass@host:port). Unsere Modulnamen bleiben lowercase (Windows case-insensitiv): topps, pokemoncenter, nike, amazon, riftbound, psn, mediamarkt, saturn, snkrs, smyths, shopify.
+
 ## Ziel
 Baki AIO: Windows-Python-Tool mit Menue 1-14. Platz 1 ist das Topps-Modul (topps.com, Shopify) fuer EU-Restock-Monitor mit Discord-Alerts, hCaptcha ueber CapSolver, Checkout-Vorbereitung. Dazu Account-Generatoren (Nike, Amazon, Riftbound), Pokemon-Center-Modul, Toolbox, Identitaets-/Fingerprint-/Human-Engine. Zielbild: lauffaehige Einzel-EXE, Rechner bleiben aus (Loop-Ansatz war Fehlschlag).
 
