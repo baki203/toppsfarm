@@ -435,3 +435,38 @@ Fehler / offen:
 - Wie schnell ein neues Produkt in der Sitemap erscheint, ist nicht gemessen (`cache-control: public, max-age=0, must-revalidate`, `x-vercel-cache: MISS`).
 - watch-Betrieb als Dauerlauf und die Exe sind nicht getestet, nur `_poll()` einzeln und der Selftest aus dem Quelltext.
 - `--- shop-de/shop-uk.topps.com (404)`, `nl/at/be/pl (DNSError/Timeout)`: unveraendert wie in Schritt 4.
+
+## Schritt 14 - Storefront-API als Zweitweg (2026-11-20)
+Ergebnis: GraphQL-products-Query liefert 200 mit Produkten. Der Token steht aber NICHT in den JS-Bundles, sondern im HTML der Startseite.
+- Storefront-API ist bereits als Zweitweg im Monitor eingebaut (`monitor_sources: [sitemap, storefront]`, `storefront_cfg()` / `storefront_products()`, siehe Matrix 7 und Schritt 13). Kein Code geaendert, die Exe wurde nicht neu gebaut.
+- Token-Suche auf de.topps.com (ohne Proxy, curl_cffi 0.17.0, `impersonate=chrome`): Startseite plus alle 49 dort eingebundenen JS-Bundles, je eine Anfrage.
+  - In keinem der 49 Bundles steht der Token-Wert oder die Shop-Domain. Zwei Bundles enthalten nur den Schluesselnamen `storefrontAccessToken` (Code, der den Wert zur Laufzeit liest), nicht den Wert.
+  - Der Wert steht genau einmal im HTML der Startseite, im Next.js-Datenblock, zusammen mit `storeDomain: topps-deu.myshopify.com`. Von dort liest ihn `storefront_cfg()` pro Host zur Laufzeit; nichts ist fest einkodiert. Der Token ist hier nur gekuerzt wiedergegeben.
+- GraphQL-Test: `POST https://topps-deu.myshopify.com/api/2024-10/graphql.json`, Header `x-shopify-storefront-access-token`, Query `products(first:$n, after:$c, sortKey:CREATED_AT, reverse:true)` mit Varianten (`id`, `availableForSale`, `price`).
+
+Ausgabe woertlich (zwei Testlaeufe, `<TOKEN>` = Token-Wert ersetzt):
+```
+curl_cffi 0.17.0
+GET / | status=200 | text/html; charset=utf-8 | 1157158 B
+GET / | status=200 | token im HTML: 1x | kontext: 'frontRootDomain\\":\\"topps.com\\",\\"storefrontAccessToken\\":\\"<TOKEN>\\"}}]\n"'
+js-bundles: 49 | statuscodes: {200: 49}
+token-wert in bundles: nein
+storeDomain in bundles: nein
+'storefrontAccessToken' in bundles: ['layout-df70fc5d7054e5ed.js', 'consent-tracking-api.js']
+'x-shopify-storefront-access-token' in bundles: ['consent-tracking-api.js']
+'graphql.json' in bundles: ['consent-tracking-api.js']
+storefront_cfg: ('topps-deu.myshopify.com', 'f674...4359 (32 Zeichen)')
+POST topps-deu.myshopify.com/api/2024-10/graphql.json | status=200 | application/json; charset=utf-8 | 2182 B | 0.1s | body[:120]='{"data":{"products":{"pageInfo":{"hasNextPage":true,"endCursor":"eyJsYXN0X2lkIjoxMDQwMDQyOTAxNTI4MCwibGFzdF92YWx1ZSI6IjI'
+storefront_products | status=200 | 250 produkte | cursor=True
+erstes: darius-acuff-jr-2026-27-nba-topps-now-r-card-96 [{'id': 51171485516016, 'price': '9.99', 'available': True}]
+ohne Token | status=200 | body[:160]='{"data":{"products":{"pageInfo":{"hasNextPage":false,"endCursor":null},"edges":[]}},"extensions":{"cost":{"requestedQueryCost":20}}}'
+```
+Statuscode: 200 (3 Produkte direkt, 250 Produkte ueber `storefront_products()`, weitere Seite vorhanden).
+
+Fehler / offen:
+- Kein HTTP-Fehler, kein 403/429 in diesem Schritt.
+- Abweichung vom Auftrag: "Token aus den Theme-JS-Bundles" geht nicht, `token-wert in bundles: nein`. Quelle ist das HTML der Startseite.
+- `ohne Token | status=200` mit leerer Produktliste: die API antwortet auch ohne Token mit 200, nur ohne Produkte. Der Statuscode allein beweist also nicht, dass der Token gilt; massgeblich ist, dass Produkte kommen. Der Selftest prueft das bereits (`st == 200 and bool(items)`). Im Monitor gilt 200 mit leerer Liste dagegen als Erfolg: wird der Token einmal ungueltig, meldet der Storefront-Weg nichts und faellt auch nicht auf die naechste Quelle durch. Nicht geaendert.
+- Faellt die Startseite aus (z. B. 429 wie in Schritt 13), kann `storefront_cfg()` bei einem frisch gestarteten Prozess keinen Token lesen (`status 0`); ein einmal gelesener Token bleibt bis zum Prozessende im Speicher.
+- Die erste Fassung des Testskripts meldete `token im HTML: nein`: Fehler im Suchmuster des Skripts (Escaping im Next.js-Datenblock), nicht im Programm. Zweiter Lauf mit dem Token-Wert als Suchtext, Ausgabe oben.
+- Nur de.topps.com getestet; es/fr/it zuletzt im Selftest von Schritt 13.
