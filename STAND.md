@@ -47,6 +47,19 @@ Stand 2026-11-20, ARBEITSWEISE (8 Punkte) + 4 QUALITY-Luecken. Deutsch. Je Punkt
    ghost account, pva_locked, kasada block, akamai block) in modules/quality.py + Abschnitt B,
    A3 (1 Konto/Proxy, kein Wechsel nach Gen), C4/C9. Getestet: compileall ok, Topps-Selftest 4/4.
 
+## Stand Punkte
+12 SKYRIDGE-UMBAU: erledigt. Wurzel BakiAIO\: baki.py, crashlog.log, settings.json, START.bat,
+   requirements.txt, README.md. utilities\ (core\ + quality.py + logger\CrashLogger.py). modules\base.py
+   (BaseModule.make_tasks/runTask + BaseTask.__init__/startRequest/_preCheck/runTask-Retry), Engine\Shopify\
+   shopify_core.py, Engine\Retail\ retail_core.py + tasks.py, Engine\Generator\tasks.py. Generators\<Site>\
+   modules\<Feature>\<Feature>Module.py + <Feature>Task.py je Feature (Amazon Invites/Address/Secret,
+   Nike FCFS/SNKRS, Topps Drop, PokemonCenter/PSN QueueCheckout, MediaMarkt/Saturn/Smyths Monitor,
+   Riftbound RaffleEntry, Shopify GuestCheckout, Toolbox ProxyTest) + __init__.py ueberall. settings.json
+   primaer (yaml nur Fallback), settings.yaml bleibt in config. ROOT-Suche bis config gefunden. Importe
+   core.->utilities., modules/__init__.py alte Pfade als Aliase. Getestet: compileall sauber, Menue 1-14
+   startet (13-14 frei), alle Modul-Factories importierbar, Topps-Selftest 4/4 200. Committet.
+
 ## WEITER
 Naechste Phase laut VORGEHEN.txt: B Amazon-Generator (non-PVA, mehrere Catch-All-Domains,
-ADDRESS-Modus in 2. Session, Selftest).
+ADDRESS-Modus in 2. Session, Selftest). Plus: 13 Topps-Drop fertigstellen (targets.yaml, --at, cart/queue),
+14 PSN-Login+Queue, 15 release.zip + EXE-Auto-Update.
