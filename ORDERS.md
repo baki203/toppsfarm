@@ -1,10 +1,19 @@
-﻿- [x] 15 | Umbau auf Modulsystem (ersetzt durch 15a-15e)
-- [x] 15a | Ordner core/ und modules/ anlegen, in beiden je eine leere __init__.py. Committen und pushen.
-- [x] 15b | modules/base.py mit Klasse BaseModule und Methode run(self). Nur das, sonst nichts.
-- [x] 15c | baki.py: Banner per pyfiglet Font ansi_shadow mit Hardcode-Fallback, darunter Menue 1-14 und 0, Auswahl per input. Noch ohne Modul-Logik, nur Anzeige.
-- [ ] 15d | toppsfarm.py nach modules/topps.py verschieben, als Klasse ToppsModule(BaseModule) mit run(). baki.py Menuepunkt 1 ruft sie auf. Alter Dateiname bleibt als duenne Weiterleitung.
-- [ ] 15e | Exe umbenennen auf BakiAIO, START.bat auf baki.py umstellen, bauen, Menue einmal testen.
-- [ ] 27 | Release-Layout wie Skyridge: Ordner accounts/, accounts/Nike, accounts/Amazon, accounts/Riftbound, proxies/, "Address Toolbox"/ anlegen, dazu leere FirstNames.txt und LastNames.txt sowie settings.json mit Defaults. Beim Programmstart crashlog.log anlegen und unbehandelte Exceptions dort mit Traceback anhängen statt im Fenster.
-- [ ] 28 | Konfiguration auf settings.json umstellen, Loader entsprechend. Bestehende settings.yaml beim ersten Start einmalig automatisch importieren und danach ignorieren.
-- [ ] 29 | Generatoren schreiben Accounts als accounts/<site>/<email>.txt, Zeilen: email, pass, vorname, nachname, adresse, plz, stadt, proxy, datum.
-- [ ] 30 | release.zip mit exakt diesem Layout bauen: BakiAIO.exe, accounts/, proxies/, Address Toolbox/, FirstNames.txt, LastNames.txt, settings.json, README.md.
+﻿- [x] 15a | Ordner core/ und modules/ anlegen, je eine leere __init__.py.
+- [ ] 15b | modules/base.py mit Klasse BaseModule und Methode run(self).
+- [ ] 15c | baki.py: Banner per pyfiglet ansi_shadow mit Hardcode-Fallback, Menue 1-14 und 0, Auswahl per input.
+- [ ] 15d | toppsfarm.py nach modules/topps.py verschieben als ToppsModule(BaseModule), Menuepunkt 1 ruft sie auf, alter Dateiname wird Weiterleitung.
+- [ ] 15e | Exe umbenennen auf BakiAIO, START.bat auf baki.py umstellen, bauen, Menue testen.
+- [ ] 16 | core/identity.py: Namenspool DE, Strassen-PLZ-Ort-Tabelle, Vorwahl-Mapping, DOB 22-45, E-Mail vorname.nachnameNN. PLZ muss zur Stadt passen, Vorwahl zur Stadt.
+- [ ] 17 | core/fingerprint.py: Seed pro Profil, Canvas/WebGL/Audio-Noise, Viewport-Pool, Timezone und Locale aus IP-Land.
+- [ ] 18 | core/human.py: Tippen mit 60-180ms Jitter plus Korrekturen, Bezier-Maus, Scroll, Hover, Pausen, Grundgeschwindigkeit pro Profil randomisiert.
+- [ ] 19 | core/browser.py: persistenter Chromium-Context pro Konto, headless=new, ohne enable-automation, Fingerprint und Human aktiv.
+- [ ] 20 | core/mailbox.py: mail.tm API, Postfach anlegen, Verifikationsmail pollen, Link extrahieren.
+- [ ] 21 | modules/nike_gen.py: Registrierung, Identitaet plus Fingerprint plus sticky Proxy, Throttle 1 pro 5 Min pro IP, Ergebnis in profiles.yaml.
+- [ ] 22 | modules/amazon_gen.py: amazon.de, DE-Wohn-IP Pflicht, Adresse setzen, kein 1-Click, Warmup nach 24h einplanen.
+- [ ] 23 | modules/pokemoncenter.py: Monitor, Queue-it, hCaptcha, Checkout, Cookie-Handoff aus core/browser.py.
+- [ ] 24 | modules/riftbound_gen.py nach Muster von Nike.
+- [ ] 25 | Toolboxen: Proxy-Test, Captcha-Balance, Webhook-Test, Session-Handoff.
+- [ ] 26 | Layout wie Skyridge: accounts/, accounts/Nike, accounts/Amazon, accounts/Riftbound, proxies/, "Address Toolbox"/, leere FirstNames.txt und LastNames.txt, settings.json mit Defaults. Beim Start crashlog.log anlegen, Exceptions dort mit Traceback.
+- [ ] 27 | Konfig auf settings.json umstellen, settings.yaml einmalig importieren, danach ignorieren.
+- [ ] 28 | Generatoren schreiben accounts/<site>/<email>.txt mit email, pass, name, adresse, proxy, datum.
+- [ ] 29 | release.zip mit BakiAIO.exe, accounts/, proxies/, Address Toolbox/, FirstNames.txt, LastNames.txt, settings.json, README.

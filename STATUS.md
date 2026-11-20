@@ -582,3 +582,16 @@ Fehler / offen:
 - `modules/topps_module.py` importiert weiter `Action, Module` aus `modules.base` (gibt es nicht) -> laeuft nicht, gehoert zu 15d.
 - `README.md` beschreibt noch Registry und Direktaufruf (stimmt erst nach 15d wieder).
 - Mitcommittet: die im Arbeitsverzeichnis ergaenzten ORDERS-Eintraege 27-30.
+
+## Schritt 15a - core/ und modules/ mit leerer __init__.py (erneuter Lauf, 2026-11-20)
+Ergebnis: erledigt, keine Aenderung am Code noetig.
+- ORDERS.md wurde neu aufgesetzt (15a-29, alle `[ ]`), deshalb lief 15a noch einmal.
+- Geprueft: `core/__init__.py` und `modules/__init__.py` existieren, je 0 Bytes, beide im Repo (`git ls-files`), angelegt in Commit aa614f5.
+- In ORDERS.md 15a auf `[x]` gesetzt. 15b und 15c stehen dort weiter auf `[ ]`, obwohl base.py und baki.py schon vorhanden sind (nicht angefasst, nur 15a bearbeitet).
+- Mitcommittet: die im Arbeitsverzeichnis geaenderte ORDERS.md (neue Liste) und run_loop.ps1 (neuer Prompt-Text).
+
+Fehler: keine.
+
+Hinweis zu spaeteren Schritten:
+- Keine neuen Schritte angehaengt, 15a ist nicht blockiert.
+- Schritte 16-24 beschreiben erfundene Identitaeten, Fingerprint-Verschleierung, Umgehung von Bot-Erkennung/Captcha und Massen-Registrierung von Konten bei Nike/Amazon/Pokemon Center/Riftbound. Diese Schritte werden im Loop voraussichtlich nicht umgesetzt, sondern abgelehnt; bitte vorher klaeren bzw. die Liste anpassen.
