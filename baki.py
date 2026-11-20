@@ -1,19 +1,22 @@
 #!/usr/bin/env python3
-"""Baki AIO - Startpunkt. Banner, Menue 1-14 und Weitergabe an die Module.
-
-  baki.py                  Menue
-  baki.py <modul> <args>   Modul direkt, z. B.  baki.py topps selftest
-"""
+"""Baki AIO - Startpunkt. Banner und Menue 1-14 / 0. Noch ohne Modul-Logik."""
 from __future__ import annotations
 
 import sys
 
-import modules
-from modules.base import Action, ask, pause
-
 SLOTS = 14
 
-# Hardcode-Fallback (pyfiglet "standard"), reines ASCII, laeuft in jeder Codepage.
+# Hardcode-Fallback 1: ansi_shadow, fest eingetragen (falls pyfiglet oder der Font fehlt).
+BANNER_SHADOW = """\
+██████╗  █████╗ ██╗  ██╗██╗     █████╗ ██╗ ██████╗
+██╔══██╗██╔══██╗██║ ██╔╝██║    ██╔══██╗██║██╔═══██╗
+██████╔╝███████║█████╔╝ ██║    ███████║██║██║   ██║
+██╔══██╗██╔══██║██╔═██╗ ██║    ██╔══██║██║██║   ██║
+██████╔╝██║  ██║██║  ██╗██║    ██║  ██║██║╚██████╔╝
+╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝    ╚═╝  ╚═╝╚═╝ ╚═════╝
+"""
+
+# Hardcode-Fallback 2: reines ASCII, falls die Konsole keine Blockzeichen ausgeben kann.
 BANNER_ASCII = r"""
  ____    _    _  _____      _    ___ ___
 | __ )  / \  | |/ /_ _|    / \  |_ _/ _ \
@@ -24,75 +27,45 @@ BANNER_ASCII = r"""
 
 
 def banner() -> str:
-    """ansi_shadow ueber pyfiglet; ohne pyfiglet/Font oder wenn die Konsole
-    die Blockzeichen nicht darstellen kann, der Hardcode-Banner."""
+    """pyfiglet ansi_shadow, sonst der fest eingetragene Banner."""
     try:
         import pyfiglet
-        text = pyfiglet.figlet_format("BAKI AIO", font="ansi_shadow")
-        text.encode(sys.stdout.encoding or "ascii")
-        return "\n" + text.rstrip() + "\n"
+        text = pyfiglet.figlet_format("BAKI AIO", font="ansi_shadow", width=200)
     except Exception:
-        return BANNER_ASCII
+        text = BANNER_SHADOW
+    try:
+        text.encode(sys.stdout.encoding or "ascii")
+    except (UnicodeError, LookupError):
+        text = BANNER_ASCII
+    return "\n" + text.strip("\n") + "\n"
 
 
-def menu_entries() -> list:
-    """(Modul-Kurzname, Action) je Menueplatz, aufgefuellt auf SLOTS Plaetze."""
-    entries = []
-    for key in modules.KEYS:
-        mod = modules.load(key)
-        entries += [(key, a) for a in mod.actions]
-    entries = entries[:SLOTS]
-    return entries + [None] * (SLOTS - len(entries))
-
-
-def run_module(key: str, argv: list) -> int:
-    mod = modules.load(key)
-    if mod is None:
-        print(f"Unbekanntes Modul: {key}. Vorhanden: {', '.join(modules.KEYS)}")
-        return 2
-    return mod.run(argv)
-
-
-def run_action(key: str, action: Action) -> int:
-    argv = list(action.argv)
-    for opt, frage in action.prompts:
-        wert = ask(f" {frage}: ")
-        if not wert:
-            print(" abgebrochen")
-            return 1
-        argv += [opt, wert]
-    return run_module(key, argv)
+def show_menu() -> None:
+    print(banner())
+    print(" " + "=" * 50)
+    for i in range(1, SLOTS + 1):
+        print(f"  {i:>2}  -")
+    print("   0  Ende")
+    print(" " + "=" * 50)
 
 
 def menu() -> int:
-    entries = menu_entries()
-    text = banner()
     while True:
-        print(text)
-        print(" " + "=" * 50)
-        for i, e in enumerate(entries, 1):
-            print(f"  {i:>2}  {e[1].title if e else '-'}")
-        print("   0  Ende")
-        print(" " + "=" * 50)
+        show_menu()
         try:
             wahl = input(" Auswahl: ").strip()
         except (EOFError, KeyboardInterrupt):
+            print()
             return 0
         if wahl == "0":
             return 0
-        if not wahl.isdigit() or not 1 <= int(wahl) <= SLOTS:
-            continue
-        e = entries[int(wahl) - 1]
-        if e is None:
-            print(" Platz nicht belegt.")
+        if wahl.isdigit() and 1 <= int(wahl) <= SLOTS:
+            print(f" {int(wahl)}: noch nicht belegt.")
         else:
-            run_action(*e)
-        pause()
+            print(" Ungueltige Auswahl.")
 
 
 def main() -> int:
-    if len(sys.argv) > 1:
-        return run_module(sys.argv[1], sys.argv[2:])
     return menu()
 
 

@@ -1,12 +1,13 @@
-# STATE (nach Schritt 15b, 2026-11-20)
+# STATE (nach Schritt 15c, 2026-11-20)
 
 Stand:
-- core/ und modules/ mit leerer __init__.py (15a).
-- modules/base.py: nur `class BaseModule` mit `run(self)` (raise NotImplementedError) (15b).
+- core/ und modules/ mit leerer __init__.py (15a); modules/base.py nur `BaseModule.run()` (15b).
+- baki.py: Banner (pyfiglet ansi_shadow, Hardcode-Fallback ansi_shadow, sonst ASCII), Menue 1-14 (alle `-`) und 0, input; keine Modul-Logik, keine Argumente (15c).
 
 Offene Punkte:
-- baki.py und modules/topps_module.py importieren Action/Module/ask/pause aus modules.base, die es nicht mehr gibt -> beide laufen nicht (15c/15d).
-- baki.py nutzt modules.KEYS / modules.load, modules/__init__.py ist leer.
-- toppsfarm.py fehlt im Repo (liegt als modules/topps.py), Weiterleitung fehlt; START.bat/Exe noch nicht final (15e).
+- modules/topps_module.py importiert Action/Module aus modules.base (gibt es nicht) -> laeuft nicht.
+- toppsfarm.py fehlt im Repo (Logik liegt in modules/topps.py), Weiterleitung fehlt; README beschreibt noch Registry/Direktaufruf.
+- START.bat ruft `baki.py topps setup` auf, baki.py ignoriert Argumente; Exe/START.bat noch nicht final (15e).
+- Banner im echten Konsolenfenster noch nicht geprueft (cp1252 -> ASCII-Fallback).
 
-Naechster Schritt: 15c - baki.py neu: Banner (pyfiglet ansi_shadow + Hardcode-Fallback), Menue 1-14 und 0, input, ohne Modul-Logik.
+Naechster Schritt: 15d - ToppsModule(BaseModule) mit run() in modules/topps.py, Menuepunkt 1 in baki.py ruft sie auf, toppsfarm.py als duenne Weiterleitung.

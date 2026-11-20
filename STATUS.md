@@ -540,3 +540,45 @@ Fehler / offen:
 - Keine Fehler in 15b selbst.
 - `baki.py` (Zeile 12: `from modules.base import Action, ask, pause`) und `modules/topps_module.py` (Zeile 4: `from modules.base import Action, Module`) importieren Namen, die es in `base.py` nicht mehr gibt, und laufen daher nicht. Nicht behoben, gehoert zu 15c/15d.
 - Der Commit `4d6608c` hat bereits Teile von 15c-15e ins Repo gebracht (`baki.py`, `modules/topps.py`, `modules/topps_module.py`, `START.bat`, `README.md`, `config/settings.yaml`, `requirements.txt`, `claude.log`). `toppsfarm.py` existiert im Repo nicht mehr, die duenne Weiterleitung aus 15d fehlt noch.
+
+## Schritt 15c - baki.py: Banner und Menue 1-14 / 0, nur Anzeige (2026-11-20)
+
+Ergebnis:
+- `baki.py` neu geschrieben, ohne Modul-Logik und ohne Import aus `modules`:
+  - Banner per `pyfiglet.figlet_format("BAKI AIO", font="ansi_shadow")`.
+  - Hardcode-Fallback 1: derselbe ansi_shadow-Banner fest im Quelltext (pyfiglet/Font fehlt).
+  - Hardcode-Fallback 2: ASCII-Banner, wenn die Konsolen-Codierung die Blockzeichen nicht kann.
+  - Menue: Plaetze 1-14 (alle noch `-`) und `0  Ende`, Auswahl per `input(" Auswahl: ")`.
+  - 1-14 -> ` N: noch nicht belegt.`, sonst ` Ungueltige Auswahl.`, danach Menue erneut; 0/EOF/Strg+C -> Ende, Exitcode 0.
+- Entfallen (kommt mit 15d wieder): Modul-Registry, Direktaufruf `baki.py <modul> <args>`.
+
+Test (Eingabe `3`, `x`, `0`, mit PYTHONIOENCODING=utf-8), Ausgabe woertlich gekuerzt auf einen Durchlauf:
+```
+
+██████╗  █████╗ ██╗  ██╗██╗     █████╗ ██╗ ██████╗
+██╔══██╗██╔══██╗██║ ██╔╝██║    ██╔══██╗██║██╔═══██╗
+██████╔╝███████║█████╔╝ ██║    ███████║██║██║   ██║
+██╔══██╗██╔══██║██╔═██╗ ██║    ██╔══██║██║██║   ██║
+██████╔╝██║  ██║██║  ██╗██║    ██║  ██║██║╚██████╔╝
+╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝    ╚═╝  ╚═╝╚═╝ ╚═════╝
+
+ ==================================================
+   1  -
+   ...
+  14  -
+   0  Ende
+ ==================================================
+ Auswahl:  3: noch nicht belegt.
+ Auswahl:  Ungueltige Auswahl.
+ Auswahl: exit=0
+```
+- Ohne pyfiglet (`sys.modules['pyfiglet']=None`): Hardcode-ansi_shadow-Banner erscheint.
+- Mit umgeleiteter Ausgabe in cp1252 (ohne PYTHONIOENCODING): ASCII-Banner erscheint.
+
+Fehler / offen:
+- Keine Fehler in 15c selbst.
+- Nicht im echten Konsolenfenster geprueft (nur per Pipe). Ob dort ansi_shadow oder ASCII erscheint, haengt von der Codierung ab (hier: Python meldet cp1252 -> ASCII-Banner).
+- `START.bat` ruft noch `%BAKI% topps setup` auf, wenn `config\profiles.yaml` fehlt; `baki.py` ignoriert jetzt Argumente und zeigt nur das Menue. Nicht behoben, gehoert zu 15d/15e.
+- `modules/topps_module.py` importiert weiter `Action, Module` aus `modules.base` (gibt es nicht) -> laeuft nicht, gehoert zu 15d.
+- `README.md` beschreibt noch Registry und Direktaufruf (stimmt erst nach 15d wieder).
+- Mitcommittet: die im Arbeitsverzeichnis ergaenzten ORDERS-Eintraege 27-30.

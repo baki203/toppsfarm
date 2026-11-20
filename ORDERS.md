@@ -1,6 +1,10 @@
 ﻿- [x] 15 | Umbau auf Modulsystem (ersetzt durch 15a-15e)
 - [x] 15a | Ordner core/ und modules/ anlegen, in beiden je eine leere __init__.py. Committen und pushen.
 - [x] 15b | modules/base.py mit Klasse BaseModule und Methode run(self). Nur das, sonst nichts.
-- [ ] 15c | baki.py: Banner per pyfiglet Font ansi_shadow mit Hardcode-Fallback, darunter Menue 1-14 und 0, Auswahl per input. Noch ohne Modul-Logik, nur Anzeige.
+- [x] 15c | baki.py: Banner per pyfiglet Font ansi_shadow mit Hardcode-Fallback, darunter Menue 1-14 und 0, Auswahl per input. Noch ohne Modul-Logik, nur Anzeige.
 - [ ] 15d | toppsfarm.py nach modules/topps.py verschieben, als Klasse ToppsModule(BaseModule) mit run(). baki.py Menuepunkt 1 ruft sie auf. Alter Dateiname bleibt als duenne Weiterleitung.
 - [ ] 15e | Exe umbenennen auf BakiAIO, START.bat auf baki.py umstellen, bauen, Menue einmal testen.
+- [ ] 27 | Release-Layout wie Skyridge: Ordner accounts/, accounts/Nike, accounts/Amazon, accounts/Riftbound, proxies/, "Address Toolbox"/ anlegen, dazu leere FirstNames.txt und LastNames.txt sowie settings.json mit Defaults. Beim Programmstart crashlog.log anlegen und unbehandelte Exceptions dort mit Traceback anhängen statt im Fenster.
+- [ ] 28 | Konfiguration auf settings.json umstellen, Loader entsprechend. Bestehende settings.yaml beim ersten Start einmalig automatisch importieren und danach ignorieren.
+- [ ] 29 | Generatoren schreiben Accounts als accounts/<site>/<email>.txt, Zeilen: email, pass, vorname, nachname, adresse, plz, stadt, proxy, datum.
+- [ ] 30 | release.zip mit exakt diesem Layout bauen: BakiAIO.exe, accounts/, proxies/, Address Toolbox/, FirstNames.txt, LastNames.txt, settings.json, README.md.
