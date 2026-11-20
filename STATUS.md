@@ -138,3 +138,18 @@ Ursache DNSError/Timeout:
 - shop-uk.topps.com: im ersten Durchlauf 403, jetzt Timeout.
 
 Nicht versucht: die Cloudflare-Sperre zu umgehen (anderer Fingerprint, Proxys, Header-Varianten).
+
+## Schritt 3 - Exe bauen, dritter Durchlauf (2026-11-20)
+Ergebnis: erledigt. Build laeuft ohne Traceback durch (Exit-Code 0).
+- Befehl: `.\.venv\Scripts\pyinstaller.exe --noconfirm --onefile --name toppsfarm --collect-all curl_cffi --collect-all playwright toppsfarm.py`
+- PyInstaller 6.22.3, Python 3.14.4. Kein `Traceback`, keine `ERROR`-Zeile von PyInstaller im Build-Log.
+- Ende der Ausgabe:
+```
+3512 INFO: checking PYZ
+3626 INFO: checking PKG
+3667 INFO: checking EXE
+3681 INFO: Build complete! The results are available in: C:\Users\sargo\Downloads\toppsfarm\dist
+```
+- Die Exe wurde dabei NICHT neu geschrieben: PyInstaller hat PYZ/PKG/EXE nur geprueft und als aktuell befunden (Build-Cache, toppsfarm.py seit dem letzten Build unveraendert). `dist\toppsfarm.exe` ist weiterhin die Datei vom zweiten Durchlauf: 60285173 Bytes, 20.11.2026 02:45:37.
+- Auffaellig: PyInstaller meldet als Python-Umgebung `C:\Users\sargo\Desktop\topps bot\toppsfarm\.venv`, nicht den `.venv`-Ordner unter `Downloads\toppsfarm`. Der Build funktioniert, die venv zeigt aber auf den alten Pfad.
+Fehler: keine.
