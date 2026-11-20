@@ -248,12 +248,43 @@ class Notifier:
 
 
 # --------------------------------------------------------------- proxy
+def _parse_proxy_lines(text: str) -> list[str]:
+    return [l.strip() for l in text.splitlines()
+            if l.strip() and not l.strip().startswith("#")]
+
+
+def proxy_files_for(module: str) -> list[Path]:
+    """Liest alle .txt-Dateien aus proxies/<module>/ und zusaetzlich
+    proxies/*.txt (globale Eintraege). config/proxy.txt bleibt als
+    globaler Fallback, wenn nichts gefunden wird."""
+    files: list[Path] = []
+    mod_dir = ROOT / "proxies" / module
+    if mod_dir.is_dir():
+        files += sorted(f for f in mod_dir.glob("*.txt")
+                        if f.name.lower() != "readme.txt")
+    files += sorted(f for f in (ROOT / "proxies").glob("*.txt")
+                    if f.name.lower() != "readme.txt")
+    return files
+
+
 class ProxyPool:
-    def __init__(self, db: "State"):
+    def __init__(self, db: "State", module: str = "topps"):
         self.db = db
-        p = ROOT / "config" / "proxy.txt"
-        self.items = [l.strip() for l in p.read_text(encoding="utf-8-sig").splitlines()
-                      if l.strip() and not l.strip().startswith("#")] if p.exists() else []
+        self.module = module
+        items: list[str] = []
+        seen: set[str] = set()
+        for f in proxy_files_for(module):
+            if not f.exists():
+                continue
+            for x in _parse_proxy_lines(f.read_text(encoding="utf-8-sig")):
+                if x not in seen:
+                    seen.add(x)
+                    items.append(x)
+        if not items:  # globaler Fallback
+            p = ROOT / "config" / "proxy.txt"
+            if p.exists():
+                items = _parse_proxy_lines(p.read_text(encoding="utf-8-sig"))
+        self.items = items
 
     async def acquire(self, pinned: str | None = None) -> str | None:
         if pinned or not self.items:
@@ -720,7 +751,7 @@ class HttpCheckout:
 
     async def run(self, task: dict, prof: Profile) -> dict:
         host = task["host"]
-        proxy = await self.pool.acquire(prof.proxy)
+        proxy = task.get("proxy") or await self.pool.acquire(prof.proxy)
         s = session(self.cfg, proxy)
         res = {"ok": False, "note": "", "url": None, "order": None}
         try:
@@ -871,7 +902,7 @@ class BrowserCheckout:
             await self.pw.stop()
 
     async def run(self, task: dict, prof: Profile) -> dict:
-        proxy = await self.pool.acquire(prof.proxy)
+        proxy = task.get("proxy") or await self.pool.acquire(prof.proxy)
         px = None
         if proxy:
             scheme, rest = proxy.split("://", 1)
@@ -1063,9 +1094,10 @@ class Orchestrator:
                 LOG.warning("keine freien Profile")
                 return
             tid = await self.state.add_task(p.id, host, vid, qty, mode)
+            proxy = await self.pool.acquire(p.proxy)
             self.tasks.append(asyncio.create_task(self._run(tid, {
                 "host": host, "variant": vid, "qty": qty, "mode": mode,
-                "card_http": card_http, "profile": p})))
+                "card_http": card_http, "profile": p, "proxy": proxy})))
             await asyncio.sleep(random.uniform(.03, .15))
 
     async def _run(self, tid, task):
@@ -1215,7 +1247,7 @@ def main(argv=None):
     cfg = Settings.load()
     setup_log(cfg)
     state = State(str(cfg.path(cfg.state_db)))
-    pool = ProxyPool(state)
+    pool = ProxyPool(state, "topps")
     notifier = Notifier(ENV.get("DISCORD_WEBHOOK", ""), ENV.get("DISCORD_WEBHOOK_ERRORS", ""))
     solver = Solver(cfg)
 

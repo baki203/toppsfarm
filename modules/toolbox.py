@@ -26,14 +26,26 @@ async def test_proxy(proxy: str, timeout: int = 15) -> dict:
                 "note": type(exc).__name__}
 
 
-async def test_proxies() -> list[dict]:
-    """Testet alle Eintraege aus config/proxy.txt."""
-    p = ROOT / "config" / "proxy.txt"
-    if not p.exists():
-        print("[toolbox] config/proxy.txt fehlt.")
+async def test_proxies(module: str = "topps") -> list[dict]:
+    """Testet alle Eintraege aus proxies/<module>/ und proxies/*.txt."""
+    from modules.topps import proxy_files_for, _parse_proxy_lines
+    files = proxy_files_for(module)
+    items: list[str] = []
+    seen: set[str] = set()
+    for f in files:
+        if not f.exists():
+            continue
+        for x in _parse_proxy_lines(f.read_text(encoding="utf-8-sig")):
+            if x not in seen:
+                seen.add(x)
+                items.append(x)
+    if not items:
+        p = ROOT / "config" / "proxy.txt"
+        if p.exists():
+            items = _parse_proxy_lines(p.read_text(encoding="utf-8-sig"))
+    if not items:
+        print(f"[toolbox] keine Proxies fuer Modul '{module}' gefunden.")
         return []
-    items = [l.strip() for l in p.read_text(encoding="utf-8-sig").splitlines()
-             if l.strip() and not l.strip().startswith("#")]
     return list(await asyncio.gather(*(test_proxy(x) for x in items)))
 
 
@@ -77,7 +89,7 @@ class ToolboxModule:
     def run(self):
         while True:
             print(f"\n --- {self.title} ---")
-            print("   1  Proxy testen (config/proxy.txt)")
+            print("   1  Proxy testen (Modulordner)")
             print("   2  Captcha-Balance")
             print("   3  Discord-Webhook testen")
             print("   0  Zurueck")
@@ -89,8 +101,9 @@ class ToolboxModule:
             if wahl == "0":
                 return 0
             if wahl == "1":
+                mod = input(" Modul [topps]: ").strip() or "topps"
                 try:
-                    for r in asyncio.run(test_proxies()):
+                    for r in asyncio.run(test_proxies(mod)):
                         print(f"[{'OK' if r['ok'] else 'FAIL'}] {r['proxy']} "
                               f"({r['status']}) {r['note']}")
                 except KeyboardInterrupt:
