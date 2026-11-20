@@ -1,15 +1,8 @@
-﻿hosts:
-  - de.topps.com
-  - shop-de.topps.com
-  - es.topps.com
-  - fr.topps.com
-  - it.topps.com
-  - nl.topps.com
-  - at.topps.com
-  - be.topps.com
-  - pl.topps.com
-  - shop-uk.topps.com
-
+hosts:
+- de.topps.com
+- es.topps.com
+- fr.topps.com
+- it.topps.com
 ship_country: DE
 impersonate: chrome
 locale: de-DE
@@ -17,10 +10,9 @@ concurrency_http: 60
 concurrency_browser: 8
 poll_interval_s: 2.5
 poll_jitter_s: 0.9
-# Monitor-Quellen in Reihenfolge: sitemap, storefront, products_json
 monitor_sources:
-  - sitemap
-  - storefront
+- sitemap
+- storefront
 timeout_s: 25
 max_retries: 3
 retry_backoff_s: 1.5

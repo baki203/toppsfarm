@@ -21,7 +21,7 @@ from curl_cffi.requests import AsyncSession
 from rich.console import Console
 from rich.logging import RichHandler
 
-ROOT = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent
+ROOT = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent.parent
 if not (ROOT / "config").exists() and (ROOT.parent / "config").exists():
     ROOT = ROOT.parent
 CONSOLE = Console()
@@ -1053,7 +1053,7 @@ async def cmd_drop(cfg, state, pool, notifier, solver, host, vid, tasks, qty, mo
     CONSOLE.print(await state.stats())
 
 
-def main():
+def main(argv=None):
     ap = argparse.ArgumentParser(prog="toppsfarm")
     sub = ap.add_subparsers(dest="cmd", required=True)
     for c in ("setup", "selftest", "profiles-check", "stats", "install-browser"):
@@ -1068,7 +1068,7 @@ def main():
     d.add_argument("--qty", type=int, default=1)
     d.add_argument("--mode", default="cart", choices=["cart", "browser"])
     d.add_argument("--card-http", action="store_true")
-    a = ap.parse_args()
+    a = ap.parse_args(argv)
 
     if a.cmd == "setup":
         cmd_setup()
