@@ -4,7 +4,7 @@
 - [x] 7 | release.zip (haengt an 4)
 - [x] 8 | headers() auf Minimum reduzieren: nur accept und accept-language setzen, alle anderen Header entfernen und dem impersonate ueberlassen. Test gegen https://de.topps.com/products.json ohne Query, Statuscode und Body-Anfang nach STATUS.md.
 - [x] 9 | impersonate durchprobieren: chrome, chrome131, chrome124, safari17_0, firefox133. Je Variante Statuscode nach STATUS.md, nicht installierte ueberspringen.
-- [ ] 10 | HTTP/1.1 erzwingen statt h2, gegen de.topps.com/products.json, Statuscode nach STATUS.md.
+- [x] 10 | HTTP/1.1 erzwingen statt h2, gegen de.topps.com/products.json, Statuscode nach STATUS.md.
 - [ ] 11 | Vergleich mit und ohne ?limit=250 auf products.json, Statuscodes nach STATUS.md.
 - [ ] 12 | Falls weiter 403: /sitemap.xml, /sitemap_products_1.xml, /products/<handle>.js testen, Statuscodes nach STATUS.md.
 - [ ] 13 | Falls Sitemap geht: Monitor auf Sitemap umbauen. Neue Handles aus sitemap_products_1.xml diffen, Variant-ID aus /products/<handle>.js ziehen, products.json als optionalen Zweitweg behalten.

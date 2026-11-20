@@ -312,3 +312,21 @@ impersonate=safari17_0 | 403 | text/html; charset=UTF-8 | 5683 B | server=cloudf
 impersonate=firefox133 | 403 | text/html; charset=UTF-8 | 5683 B | server=cloudflare | title=Attention Required! | Cloudflare
 ```
 Fehler: Statuscode 403 bei jeder Variante, Body ist die Cloudflare-Blockseite `Attention Required! | Cloudflare` (5683 B HTML), kein products-JSON. Gleiches Ergebnis wie Matrix 2 aus Schritt 4: der Fingerprint ist nicht die Ursache, `/products.json` ist auf de.topps.com pauschal gesperrt.
+## Schritt 10 - HTTP/1.1 erzwingen (2026-11-20)
+Ergebnis: 403, auch mit HTTP/1.1.
+- Genau eine Anfrage auf `https://de.topps.com/products.json` (ohne Query, ohne Proxy), curl_cffi 0.17.0, `impersonate=chrome`, `http_version=CurlHttpVersion.V1_1`, Header nur `accept` und `accept-language` wie nach Schritt 8.
+- `http_version: 2` ist der curl-Enum-Wert fuer HTTP/1.1 (3 waere HTTP/2): die Antwort kam also tatsaechlich ueber HTTP/1.1, nicht ueber h2.
+- Kein Code geaendert. toppsfarm.py erzwingt weiterhin keine HTTP-Version, die Exe wurde nicht neu gebaut.
+
+Ausgabe woertlich:
+```
+curl_cffi 0.17.0
+status: 403
+http_version: 2
+content-type: text/html; charset=UTF-8
+server: cloudflare
+size: 5683
+title: Attention Required! | Cloudflare
+body[:200]: '<!DOCTYPE html>\n<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->\n<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->\n<!--[if IE 8]>    <html class="no-'
+```
+Fehler: Statuscode 403, Body ist die Cloudflare-Blockseite `Attention Required! | Cloudflare` (5683 B HTML), kein products-JSON. Gleiches Ergebnis wie Matrix 3 aus Schritt 4: die HTTP-Version ist nicht die Ursache, `/products.json` ist auf de.topps.com pauschal gesperrt.
