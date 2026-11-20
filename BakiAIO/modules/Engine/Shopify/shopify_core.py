@@ -1384,8 +1384,243 @@ async def _drop_wait_until(at: str):
     await asyncio.sleep(secs)
 
 
+# --------------------------------------------------------------- landing resolve
+def _slug_from_url(url: str) -> str:
+    """Letztes Pfad-Segment der Landing-URL als Slug (fuer Search/Slug-Kandidaten)."""
+    from urllib.parse import urlparse, unquote
+    seg = [x for x in unquote(urlparse(url).path).split("/") if x]
+    return (seg[-1].split("?")[0].lower() if seg else "")
+
+
+def _extract_handles_from_html(html: str) -> set:
+    """Produkt-Handles aus dem HTML: /products/<handle>-Links (deckt auch
+    eingebettete Objekte und JSON-LD-Urls ab)."""
+    return {m.group(1) for m in re.finditer(r"/products/([a-z0-9][a-z0-9\-]+)", html)
+            if len(m.group(1)) > 3}
+
+
+def _slug_candidates(slug: str) -> set:
+    """Kandidaten aus dem Slug: selbst, Praefixe/Suffixe an "-" und gaengige
+    Shopify-Suffixe (Box/Pack/Set/Drop/Launch...)."""
+    cands = {slug}
+    parts = slug.split("-")
+    for i in range(1, len(parts)):
+        cands.add("-".join(parts[:i]))
+        cands.add("-".join(parts[-i:]))
+    for suf in ("", "-drop", "-release", "-launch", "-box", "-pack", "-set",
+                "-bundle", "-display", "-booster"):
+        cands.add(slug + suf)
+    return {c for c in cands if len(c) > 2}
+
+
+async def _load_landing(s: AsyncSession, cfg: Settings, host: str,
+                        url: str) -> str:
+    try:
+        r = await s.get(url, headers=headers(cfg, host))
+        return r.text if r.status_code == 200 else ""
+    except Exception:
+        return ""
+
+
+async def _storefront_product(s: AsyncSession, cfg: Settings, host: str,
+                              handle: str) -> dict | None:
+    """product(handle:) via Storefront -> {handle, title, variants[]} oder None,
+    wenn das Handle nicht aufloesbar (null)."""
+    sf = await storefront_cfg(s, cfg, host)
+    if not sf:
+        return None
+    dom, tok = sf
+    q = ("query($h:String!){product(handle:$h){id handle title "
+         "variants(first:50){edges{node{id title availableForSale "
+         "price{amount}}}}}}")
+    try:
+        r = await s.post(f"https://{dom}/api/{SF_VERSION}/graphql.json",
+                         json={"query": q, "variables": {"h": handle}},
+                         headers={**base_headers(cfg, True), "content-type": "application/json",
+                                  "x-shopify-storefront-access-token": tok})
+    except Exception:
+        return None
+    if r.status_code != 200:
+        return None
+    data = (r.json().get("data") or {}).get("product")
+    if not data:
+        return None
+    variants = [{"id": _gid(v["node"]["id"]), "title": v["node"].get("title", ""),
+                 "available": bool(v["node"].get("availableForSale")),
+                 "price": float((v["node"].get("price") or {}).get("amount") or 0)}
+                for v in data.get("variants", {}).get("edges", [])]
+    return {"handle": data.get("handle", handle), "title": data.get("title", ""),
+            "variants": variants}
+
+
+async def _search_suggest(s: AsyncSession, cfg: Settings, host: str,
+                          slug: str) -> set:
+    """Storefront-Search: /search/suggest.json?q=<Schluesselwoerter>&resources
+    [type]=product -> Handles."""
+    q = re.sub(r"[^a-z0-9]+", " ", slug).strip() or slug
+    try:
+        r = await s.get(f"https://{host}/search/suggest.json", params={
+            "q": q, "resources[type]": "product", "resources[limit]": 10},
+            headers=headers(cfg, host, True))
+        if r.status_code != 200:
+            return set()
+        data = r.json()
+        results = (data.get("resources") or {}).get("results") or []
+        out = set()
+        for p in results:
+            h = (p or {}).get("handle") or ""
+            if h:
+                out.add(h)
+                continue
+            u = (p or {}).get("url", "") or ""
+            if u:
+                out.add(u.rsplit("/", 1)[-1])
+        return out
+    except Exception:
+        return set()
+
+
+async def _new_products(s: AsyncSession, cfg: Settings, host: str) -> set:
+    """Neue Produkte: products(first:20, sortKey:CREATED_AT, reverse:true)."""
+    try:
+        st, items, _ = await storefront_products(s, cfg, host, 20)
+        return {p.get("handle") for p in (items or []) if p.get("handle")}
+    except Exception:
+        return set()
+
+
+async def _sitemap_jump(s: AsyncSession, cfg: Settings, host: str) -> set:
+    """Sitemap-Sprung: sitemap_products_1.xml; fallt auf die letzte Teil-Sitemap
+    (/products/sitemap/N.xml) zurueck, wenn das erste Pfad-Format kein
+    Sitemap-XML liefert (z. B. SPA-Redirect)."""
+    try:
+        r = await s.get(f"https://{host}/products/sitemap_products_1.xml",
+                        headers=headers(cfg, host))
+        if r.status_code == 200 and re.search(r"<loc>", r.text):
+            handles = {m.group(1) for m in
+                       re.finditer(r"<loc>https?://[^<]+/products/([^<?/]+)</loc>", r.text)}
+            if handles:
+                return handles
+    except Exception:
+        pass
+    try:
+        _, handles = await sitemap_handles(s, cfg, host)
+        return set(handles)
+    except Exception:
+        return set()
+
+
+async def _resolve_from(s: AsyncSession, cfg: Settings, host: str,
+                        candidates) -> dict | None:
+    for c in candidates:
+        p = await _storefront_product(s, cfg, host, c)
+        if p:
+            return p
+    return None
+
+
+async def resolve_product(s: AsyncSession, cfg: Settings, host: str,
+                          url: str) -> dict:
+    """6-stufige Landing-Aufloesung. Jede Stufe nur, wenn die vorige nichts
+    lieferte. -> {handle, title, variants[]} oder {} wenn keine Aufloesung."""
+    html = await _load_landing(s, cfg, host, url)
+    slug = _slug_from_url(url)
+    p = None
+    # URL ist selbst eine Produkt-URL -> exaktes Handle zuerst
+    own = (re.search(r"/products/([a-z0-9][a-z0-9\-]+)", url) or [None, None])
+    if own and own[1]:
+        p = await _storefront_product(s, cfg, host, own[1])
+    if p:
+        return p
+    if html:
+        p = await _resolve_from(s, cfg, host, _extract_handles_from_html(html))
+    if p:
+        return p
+    if slug:
+        p = await _resolve_from(s, cfg, host, await _search_suggest(s, cfg, host, slug))
+    if p:
+        return p
+    p = await _resolve_from(s, cfg, host, await _new_products(s, cfg, host))
+    if p:
+        return p
+    p = await _resolve_from(s, cfg, host, await _sitemap_jump(s, cfg, host))
+    if p:
+        return p
+    if slug:
+        p = await _resolve_from(s, cfg, host, _slug_candidates(slug))
+    if p:
+        return p
+    return {}
+
+
+async def _variant_available(s: AsyncSession, cfg: Settings, host: str,
+                             handle: str, variant_id: int):
+    prod = await _storefront_product(s, cfg, host, handle)
+    if not prod:
+        return False, None
+    for v in prod["variants"]:
+        if int(v["id"]) == int(variant_id):
+            return v["available"], v["price"]
+    return False, None
+
+
+async def _build_cart(s: AsyncSession, cfg: Settings, host: str,
+                      variant_id: int, qty: int) -> str | None:
+    """Cart vorbauen (cartCreate) -> checkoutUrl."""
+    sf = await storefront_cfg(s, cfg, host)
+    if not sf:
+        return None
+    dom, tok = sf
+    q = ("mutation cartCreate($input:CartInput!){cartCreate(input:$input){"
+         "cart{id checkoutUrl} userErrors{field message}}}")
+    try:
+        r = await s.post(f"https://{dom}/api/{SF_VERSION}/graphql.json",
+                         json={"query": q, "variables": {"input": {"lines": [
+                             {"merchandiseId": f"gid://shopify/ProductVariant/{variant_id}",
+                              "quantity": int(qty)}]}}},
+                         headers={**base_headers(cfg, True), "content-type": "application/json",
+                                  "x-shopify-storefront-access-token": tok})
+    except Exception:
+        return None
+    if r.status_code != 200:
+        return None
+    cart = (r.json().get("data") or {}).get("cartCreate") or {}
+    if cart.get("userErrors"):
+        return None
+    return (cart.get("cart") or {}).get("checkoutUrl")
+
+
+async def _poll_and_link(s: AsyncSession, cfg: Settings, host: str, handle: str,
+                         variant_id: int, qty: int, maxp: float):
+    """ID-Polling auf availableForSale:true (1-2 s), dann Cart -> Checkout-Link.
+    maxp wird vor dem Cart nochmals geprueft. -> (link, preis) oder (None, None)."""
+    end = time.monotonic() + float(cfg.queue.get("max_wait_s", 1800))
+    while time.monotonic() < end:
+        avail, price = await _variant_available(s, cfg, host, handle, variant_id)
+        if avail:
+            if maxp and price and price > maxp:
+                await asyncio.sleep(1.5)
+                continue
+            link = await _build_cart(s, cfg, host, variant_id, qty)
+            if link:
+                return link, price
+        await asyncio.sleep(1.5)
+    return None, None
+
+
 async def cmd_drop(cfg, state, pool, notifier, solver, host, vid, tasks, qty, mode,
-                   card=False, at="", target="", dry=True):
+                   card=False, at="", target="", dry=True, resolve=""):
+    if resolve:
+        if MODULE != "topps":
+            CONSOLE.print("[red]--resolve ist nur im Modul topps verfuegbar.[/]")
+            return
+        if not at:
+            CONSOLE.print("[yellow]--resolve ohne --at: sofortiger Lauf (--at empfohlen).[/]")
+        if at:
+            await _drop_wait_until(at)
+        await _resolve_and_drop(cfg, state, pool, notifier, solver, resolve, qty,
+                                mode, card, dry)
+        return
     if target:
         t = next((x for x in load_targets()
                   if x.get("name", "").lower() == target.lower()), None)
@@ -1428,6 +1663,59 @@ async def cmd_drop(cfg, state, pool, notifier, solver, host, vid, tasks, qty, mo
     CONSOLE.print(await state.stats())
 
 
+async def _resolve_and_drop(cfg, state, pool, notifier, solver, url: str,
+                            qty: int, mode: str, card: bool, dry: bool):
+    """--resolve: Landing-URL -> Handle -> Varianten-ID -> Cart -> Checkout-Link.
+    Alle Requests ueber denselben Proxy + dieselbe Session. max_price-Pruefung
+    aus targets.yaml (Host-Match), danach reines ID-Polling."""
+    from urllib.parse import urlparse
+    host = (urlparse(url).netloc or "").lower()
+    if host.startswith("www."):
+        host = host[4:]
+    if not host:
+        host = cfg.hosts[0] if cfg.hosts else ""
+    if not host:
+        CONSOLE.print("[red]resolve: kein Host in URL und keine cfg.hosts.[/]")
+        return
+    proxy = await pool.acquire()
+    maxp = float((next((t for t in load_targets() if host in (t.get("hosts") or [])),
+                        None) or {}).get("max_price") or 0)
+    s = session(cfg, proxy)
+    try:
+        CONSOLE.print(f"[bold]resolve[/] {host} {url}"
+                      + (f" (max_price {maxp})" if maxp else ""))
+        # Schritt 1: frische cf_clearance ueber den Task-Proxy (IP-gebunden)
+        try:
+            await cf_refresh(host, proxy=proxy)
+        except Exception as exc:
+            LOG.debug("resolve cf_refresh: %s", exc)
+        prod = await resolve_product(s, cfg, host, url)
+        if not prod:
+            CONSOLE.print("[red]resolve: kein Produkt-Handle aufloesbar.[/]")
+            return
+        variant = prod["variants"][0] if prod["variants"] else None
+        if not variant:
+            CONSOLE.print("[red]resolve: Produkt ohne Varianten.[/]")
+            return
+        price = variant.get("price", 0)
+        CONSOLE.print(f"[green]resolve ok[/] {prod.get('title', '?')} "
+                      f"({prod.get('handle')}) Variante {variant['id']} Preis {price}")
+        if maxp and price and price > maxp:
+            CONSOLE.print(f"[red]resolve: Preis {price} > max_price {maxp}, Abbruch.[/]")
+            return
+        link, final_price = await _poll_and_link(s, cfg, host, prod["handle"],
+                                                 variant["id"], qty, maxp)
+        if not link:
+            CONSOLE.print("[red]resolve: kein Checkout-Link (Zeitueberschreitung).[/]")
+            return
+        CONSOLE.print(f"[bold green]CHECKOUT[/] {link}")
+        await notifier.send(f"Drop CHECKOUT {prod.get('title', '?')[:100]}", "new",
+                            {"Host": host, "Variante": variant["id"], "Preis": final_price,
+                             "Link": link})
+    finally:
+        await s.close()
+
+
 # --------------------------------------------------------------- cli generisch
 def argv_parser(prog: str = "baki", module: str | None = None):
     """Baut den Argument-Parser. Rufer koennen ein eigenes prog angeben."""
@@ -1454,6 +1742,8 @@ def argv_parser(prog: str = "baki", module: str | None = None):
     d.add_argument("--dry", action="store_true", help="Stopp vor Zahlung")
     d.add_argument("--at", default="", help="HH:MM Wartezeit (Scheduler)")
     d.add_argument("--target", default="", help="Name aus config/targets.yaml")
+    d.add_argument("--resolve", default="",
+                   help="Landing-URL zur Produkt-Aufloesung (nur Modul topps, nur mit --at sinnvoll)")
     return ap
 
 
@@ -1512,7 +1802,8 @@ def main(argv=None):
     elif a.cmd == "drop":
         dry = not a.card_http and not getattr(a, "dry", False) is False
         asyncio.run(cmd_drop(cfg, state, pool, notifier, solver, a.host, a.variant,
-                             a.tasks, a.qty, a.mode, a.card_http, a.at, a.target, dry))
+                             a.tasks, a.qty, a.mode, a.card_http, a.at, a.target, dry,
+                             a.resolve))
 
 
 class ShopifyModule(BaseModule):

@@ -17,6 +17,17 @@ Stand 2026-11-20, ARBEITSWEISE (8 Punkte) + 4 QUALITY-Luecken. Deutsch. Je Punkt
    Topps-Selftest 4/4 200, baki+Amazon import ok. BLOCKER: ohne echte Mastermails in settings.json
    bleibt OTP blockiert (imap) - Mastermails aus Sicherheitsgruenden nicht kopiert, User traegt sie
    in BakiAIO/settings.json ein (gitignored).
+25b TOPPS-DROP PER LANDING-PAGE: erledigt. shopify_core.py --resolve <url> (nur Modul topps,
+    mit --at) statt fester ID. 6-stufige Kaskade (jede Stufe nur wenn vorige leer): 1) URL ist
+    selbst /products/<handle> -> exaktes Handle zuerst; 2) Handle-Extraktion aus Landing-HTML;
+    3) search/suggest.json (de.topps deaktiviert, leer); 4) neue Produkte storefront
+    CREATED_AT reverse; 5) Sitemap-Sprung (sitemap_products_1.xml, Fallback letzte Teil-Sitemap
+    /products/sitemap/N.xml - erster Pfad liefert SPA-HTML); 6) Slug-Kandidaten. Dann
+    product(handle:) -> Varianten-ID/Preis/availableForSale, max_price-Pruefung, ID-Polling auf
+    available (1,5s) -> cartCreate -> CHECKOUT-Link + Discord. Ohne --resolve unveraendert
+    (targets.yaml). Getestet: compileall 0, Topps-Selftest 4/4 200, CLI --resolve auf echter
+    Landing-Page loest exaktes Handle (Yaxel Lendeborg Card 95, Variante 51171485155568,
+    9.99) + echter shop-de Checkout-Link, alle 6 Stufen einzeln belegt.
 
 ## BLOCKER
 - Skyridge-GitBook auth-geschuetzt (SPA nur JS-Shell, Content-API 403, kein Wayback-Mirror). Erkenntnisse stattdessen aus lokaler settings.json + crashlog.log (PyInstaller-Tracebacks) + PepperScripts-Doku.
