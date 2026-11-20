@@ -1,6 +1,6 @@
 ﻿- [x] 15 | Umbau auf Modulsystem (ersetzt durch 15a-15e)
 - [x] 15a | Ordner core/ und modules/ anlegen, in beiden je eine leere __init__.py. Committen und pushen.
-- [ ] 15b | modules/base.py mit Klasse BaseModule und Methode run(self). Nur das, sonst nichts.
+- [x] 15b | modules/base.py mit Klasse BaseModule und Methode run(self). Nur das, sonst nichts.
 - [ ] 15c | baki.py: Banner per pyfiglet Font ansi_shadow mit Hardcode-Fallback, darunter Menue 1-14 und 0, Auswahl per input. Noch ohne Modul-Logik, nur Anzeige.
 - [ ] 15d | toppsfarm.py nach modules/topps.py verschieben, als Klasse ToppsModule(BaseModule) mit run(). baki.py Menuepunkt 1 ruft sie auf. Alter Dateiname bleibt als duenne Weiterleitung.
 - [ ] 15e | Exe umbenennen auf BakiAIO, START.bat auf baki.py umstellen, bauen, Menue einmal testen.

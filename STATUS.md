@@ -517,3 +517,26 @@ Fehler / offen:
   ```
   Nicht behoben, weil `baki.py` zu 15c/15d gehoert.
 - Im Arbeitsverzeichnis gibt es `toppsfarm.py` nicht mehr (Verschiebung nach `modules/topps.py` ist vorgemerkt, nicht committet). Im Repo auf origin liegt `toppsfarm.py` weiter unveraendert.
+
+## Schritt 15b - modules/base.py mit BaseModule.run() (2026-11-20)
+
+Ergebnis:
+- `modules/base.py` enthaelt nur noch die Klasse `BaseModule` mit der Methode `run(self)`, sonst nichts:
+    ```python
+    class BaseModule:
+        def run(self):
+            raise NotImplementedError
+    ```
+- Der fruehere Inhalt (`Action`, `Module`, `ask`, `pause`), der mit dem Commit `4d6608c step 15a` per `git add -A` mit ins Repo gerutscht war, ist entfernt.
+- Mitcommittet: `run_loop.ps1` (Prompt um STATE.md erweitert, lag uncommittet im Arbeitsverzeichnis), neu `STATE.md`.
+
+Ausgabe woertlich (`from modules.base import BaseModule`, dann `BaseModule().run()`):
+```
+BaseModule: <class 'modules.base.BaseModule'> True
+run(): NotImplementedError
+```
+
+Fehler / offen:
+- Keine Fehler in 15b selbst.
+- `baki.py` (Zeile 12: `from modules.base import Action, ask, pause`) und `modules/topps_module.py` (Zeile 4: `from modules.base import Action, Module`) importieren Namen, die es in `base.py` nicht mehr gibt, und laufen daher nicht. Nicht behoben, gehoert zu 15c/15d.
+- Der Commit `4d6608c` hat bereits Teile von 15c-15e ins Repo gebracht (`baki.py`, `modules/topps.py`, `modules/topps_module.py`, `START.bat`, `README.md`, `config/settings.yaml`, `requirements.txt`, `claude.log`). `toppsfarm.py` existiert im Repo nicht mehr, die duenne Weiterleitung aus 15d fehlt noch.
