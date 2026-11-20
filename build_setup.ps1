@@ -18,9 +18,15 @@ $Setup = Join-Path $Root "dist\BakiAIOSetup"
 if (Test-Path $Setup) { Remove-Item -Recurse -Force $Setup }
 New-Item -ItemType Directory -Force -Path $Setup | Out-Null
 
-# 3) Inhalt: EXE, settings.json (aus example), leere Laufzeitdateien, Leer-Ordner
+# 3) Inhalt: EXE, settings.json (echt aus BakiAIO/settings.json, sonst example),
+#    leere Laufzeitdateien, Leer-Ordner, Proxies (falls vorhanden)
 Copy-Item $Exe (Join-Path $Setup "BakiAIO.exe")
-Copy-Item (Join-Path $Root "BakiAIO\settings.example.json") (Join-Path $Setup "settings.json")
+$RealCfg = Join-Path $Root "BakiAIO\settings.json"
+if (Test-Path $RealCfg) {
+    Copy-Item $RealCfg (Join-Path $Setup "settings.json")
+} else {
+    Copy-Item (Join-Path $Root "BakiAIO\settings.example.json") (Join-Path $Setup "settings.json")
+}
 New-Item -ItemType File -Force -Path (Join-Path $Setup "crashlog.log")   | Out-Null
 New-Item -ItemType File -Force -Path (Join-Path $Setup "FirstNames.txt") | Out-Null
 New-Item -ItemType File -Force -Path (Join-Path $Setup "LastNames.txt")  | Out-Null
@@ -28,6 +34,11 @@ foreach ($d in @("accounts", "proxies", "Address Toolbox")) {
     $dir = Join-Path $Setup $d
     New-Item -ItemType Directory -Force -Path $dir | Out-Null
     New-Item -ItemType File -Force -Path (Join-Path $dir ".gitkeep") | Out-Null
+}
+$Proxies = Join-Path $Root "proxies\proxies.txt"
+if (Test-Path $Proxies) {
+    Copy-Item $Proxies (Join-Path $Setup "proxies\proxies.txt")
+    Remove-Item -Force (Join-Path $Setup "proxies\.gitkeep") -ErrorAction SilentlyContinue
 }
 
 # 4) kein Quellmuell im Setup (keine .md/.py/yaml/config)

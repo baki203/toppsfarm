@@ -29,7 +29,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from modules.Engine.Amazon.amazon_core import (  # noqa: E402
-    AmazonClient, AmazonBrowser, DOMAINS, SkyLogger, StatusBar,
+    AmazonClient, AmazonBrowser, DOMAINS, SessionStore, SkyLogger, StatusBar,
     domain_for, paint,
 )
 from modules.Engine.Amazon.amazon_store import AmazonStore  # noqa: E402
@@ -181,6 +181,11 @@ class AmazonAIOModule:
             try:
                 r = await c.s.get(c.url("/ap/register"), timeout=30)
                 if r.status_code != 200:
+                    reason = "anti-bot (202)" if r.status_code in (202, 403, 503) else \
+                             ("not-found (404)" if r.status_code == 404 else f"http {r.status_code}")
+                    log.line("Gen", "", inbox["address"],
+                             f"Register-Page blockiert: {reason}", "err")
+                    log.status("error")
                     return None
                 data = {
                     "customerName": ident.full_name,
@@ -190,6 +195,13 @@ class AmazonAIOModule:
                     "create": "0", "action": "register",
                 }
                 r = await c.s.post(c.url("/ap/register"), data=data, timeout=30)
+                if r.status_code != 200:
+                    reason = "anti-bot (202)" if r.status_code in (202, 403, 503) else \
+                             (f"http {r.status_code}")
+                    log.line("Gen", "", inbox["address"],
+                             f"Registrierung abgewiesen: {reason}", "err")
+                    log.status("error")
+                    return None
                 link = None
                 try:
                     link = await wait_for_link(inbox, timeout=45.0)
@@ -199,7 +211,10 @@ class AmazonAIOModule:
                         "password": ident.password,
                         "first_name": ident.first_name, "last_name": ident.last_name,
                         "verify_link": link or ""}
-            except Exception:
+            except Exception as exc:
+                log.line("Gen", "", inbox["address"],
+                         f"Registrierung Fehler: {type(exc).__name__}: {exc}", "err")
+                log.status("error")
                 return None
 
     # ---------------------------------------------------------- 2 Account Reset

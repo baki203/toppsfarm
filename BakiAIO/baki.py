@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
 from utilities.logger.CrashLogger import CrashLogger
 from utilities.root import APP_ROOT, ensure_runtime, ensure_settings
