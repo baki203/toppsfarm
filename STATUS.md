@@ -180,3 +180,14 @@ Nur `accept` und `accept-language` selbst gesetzt, Rest vom impersonate.
 minimal-header chrome /products.json | 403 | http=3 | text/html; charset=UTF-8 | 5683 B | title=Attention Required! | Cloudflare
 ```
 Ergebnis: 403. Die selbst gesetzten Header (user-agent Chrome 131, sec-ch-ua, x-requested-with) sind nicht die Ursache.
+
+### Matrix 2 - impersonate-Varianten
+Alle fuenf sind in curl_cffi 0.17.0 vorhanden, keine uebersprungen.
+```
+impersonate=chrome /products.json | 403 | http=3 | text/html; charset=UTF-8 | 5683 B | title=Attention Required! | Cloudflare
+impersonate=chrome131 /products.json | 403 | http=3 | text/html; charset=UTF-8 | 5683 B | title=Attention Required! | Cloudflare
+impersonate=chrome124 /products.json | 403 | http=3 | text/html; charset=UTF-8 | 5683 B | title=Attention Required! | Cloudflare
+impersonate=safari17_0 /products.json | 403 | http=3 | text/html; charset=UTF-8 | 5683 B | title=Attention Required! | Cloudflare
+impersonate=firefox133 /products.json | 403 | http=3 | text/html; charset=UTF-8 | 5683 B | title=Attention Required! | Cloudflare
+```
+Ergebnis: 403 bei allen. Der TLS-/Browser-Fingerprint ist nicht die Ursache.
