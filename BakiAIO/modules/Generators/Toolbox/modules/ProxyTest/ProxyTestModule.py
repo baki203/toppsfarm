@@ -28,7 +28,7 @@ async def test_proxy(proxy: str, timeout: int = 15) -> dict:
 
 
 async def test_proxies(module: str = "topps") -> list[dict]:
-    """Testet alle Eintraege aus proxies/<module>/ und proxies/*.txt."""
+    """Testet alle Eintraege aus proxies/<module>/ und proxies/proxies.txt."""
     from modules.Engine.Shopify.shopify_core import proxy_files_for, _parse_proxy_lines
     files = proxy_files_for(module)
     items: list[str] = []
@@ -84,16 +84,17 @@ async def test_webhook(url: str) -> dict:
     return {"ok": True, "note": "gesendet"}
 
 
-async def precheck_proxies_cli(module: str, host: str):
-    """Punkt 4: Proxys gegen die Ziel-Domain vorpruefen -> var/proxystats.csv."""
+async def precheck_proxies_cli(module: str, hosts: str):
+    """Punkt 4: Proxys gegen die Ziel-Domain(s) vorpruefen -> var/proxystats.csv."""
     from modules.Engine.Shopify.shopify_core import ProxyPool, Settings, State, ENV
+    host_list = [h.strip() for h in hosts.split(",") if h.strip()]
     cfg = Settings.load()
     state = State(str(cfg.path(cfg.state_db)))
     pool = ProxyPool(state, module)
     if not pool.items:
         print(f"[toolbox] keine Proxies fuer Modul '{module}'.")
         return
-    r = await pool.precheck(cfg, host)
+    r = await pool.precheck(cfg, host_list)
     print(f"[toolbox] Proxy-Vorpruefung {module}: {r['checked']} geprueft, "
           f"{r['alive']} ok, {r['dead']} tot (gesperrt) -> var/proxystats.csv")
 
@@ -147,7 +148,9 @@ class ToolboxModule(BaseModule):
                         print()
             elif wahl == "4":
                 mod = input(" Modul [topps]: ").strip() or "topps"
-                host = input(" Ziel-Domain [de.topps.com]: ").strip() or "de.topps.com"
+                host = (input(" Ziel-Domain [amazon.de,nike.com,pokemoncenter.com,"
+                              "playstation.com,de.topps.com]: ").strip()
+                        or "amazon.de,nike.com,pokemoncenter.com,playstation.com,de.topps.com")
                 try:
                     asyncio.run(precheck_proxies_cli(mod, host))
                 except KeyboardInterrupt:

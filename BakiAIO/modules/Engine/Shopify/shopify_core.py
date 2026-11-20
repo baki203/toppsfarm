@@ -25,6 +25,8 @@ from rich.logging import RichHandler
 
 from modules.base import BaseModule
 
+from utilities.proxy import parse_proxy_lines  # noqa: E402
+
 ROOT = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent.parent
 while not (ROOT / "config").exists() and ROOT.parent != ROOT:
     ROOT = ROOT.parent
@@ -275,22 +277,15 @@ class Notifier:
 
 # --------------------------------------------------------------- proxy
 def _parse_proxy_lines(text: str) -> list[str]:
-    return [l.strip() for l in text.splitlines()
-            if l.strip() and not l.strip().startswith("#")]
+    return parse_proxy_lines(text)
 
 
 def proxy_files_for(module: str) -> list[Path]:
-    """Liest alle .txt-Dateien aus proxies/<module>/ und zusaetzlich
-    proxies/*.txt (globale Eintraege). config/proxy.txt bleibt als
-    globaler Fallback, wenn nichts gefunden wird."""
-    files: list[Path] = []
-    mod_dir = ROOT / "proxies" / module
-    if mod_dir.is_dir():
-        files += sorted(f for f in mod_dir.glob("*.txt")
-                        if f.name.lower() != "readme.txt")
-    files += sorted(f for f in (ROOT / "proxies").glob("*.txt")
-                    if f.name.lower() != "readme.txt")
-    return files
+    """Liest die Proxy-Dateien je Quelle (Settings proxy.source:
+    auto|shared|module). Modulordner zuerst, dann shared proxies/proxies.txt.
+    Keine Modul-Hardcodes; Delegation an utilities/proxy."""
+    from utilities.proxy import proxy_files_for as _pf
+    return _pf(module)
 
 
 class ProxyPool:
@@ -302,22 +297,25 @@ class ProxyPool:
         for f in proxy_files_for(module):
             if not f.exists():
                 continue
-            for x in _parse_proxy_lines(f.read_text(encoding="utf-8-sig")):
+            for x in parse_proxy_lines(f.read_text(encoding="utf-8-sig")):
                 if x not in seen:
                     seen.add(x)
                     items.append(x)
-        if not items:  # globaler Fallback
+        if not items:  # globaler Fallback (config/proxy.txt)
             p = ROOT / "config" / "proxy.txt"
             if p.exists():
-                items = _parse_proxy_lines(p.read_text(encoding="utf-8-sig"))
+                items = parse_proxy_lines(p.read_text(encoding="utf-8-sig"))
         self.items = items
         self.dead: set[str] = set()  # fuer den Lauf gesperrte Proxys
+        self.rr = 0  # round-robin Zeiger
 
     def mark_dead(self, proxy: str):
         if proxy:
             self.dead.add(proxy)
 
     async def acquire(self, pinned: str | None = None) -> str | None:
+        """1 Task = 1 Proxy: gibt `pinned` zurueck (kein Wechsel) oder waehlt
+        round-robin aus den lebenden Proxys (Cooldown beachtet)."""
         if pinned or not self.items:
             return pinned
         cd = await self.db.cooldowns()
@@ -325,7 +323,9 @@ class ProxyPool:
         alive = [p for p in self.items
                  if p not in self.dead and cd.get(p, 0) <= now]
         alive = alive or [p for p in self.items if p not in self.dead] or self.items
-        return random.choice(alive)
+        p = alive[self.rr % len(alive)]
+        self.rr = (self.rr + 1) % len(alive)
+        return p
 
     async def precheck(self, cfg: Settings, host: str) -> dict:
         """Pruft jeden Proxy einmal gegen `host`. Tote Proxys werden fuer den

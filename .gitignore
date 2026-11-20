@@ -11,4 +11,9 @@ release.zip
 discord/*
 !discord/auswerten.py
 !discord/WISSEN.md
-!discord/WISSEN_roh.md
+!discord/WISSEN_roh.mdaccounts/*/*.txt
+proxies/proxies.txt
+proxies.txt
+
+BakiAIO/accounts/*/*.txt
+

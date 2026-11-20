@@ -16,21 +16,24 @@ _STORAGE = "var/browser"
 
 class Browser:
     def __init__(self, user_data_dir: str = _STORAGE, headless: bool = True,
-                 seed: int | None = None):
+                 seed: int | None = None, proxy: str | None = None):
         self.user_data_dir = user_data_dir
         self.headless = headless
         self.seed = seed if seed is not None else 1337
+        self.proxy = proxy
         self.pw = self.browser = None
         self.human = Human(seed)
 
     async def start(self):
         if self.browser:
             return
+        from utilities.proxy import proxy_playwright
         self.pw = await async_playwright().start()
         self.browser = await self.pw.chromium.launch_persistent_context(
             self.user_data_dir, headless=self.headless,
             user_agent=UA, locale="de-DE", timezone_id="Europe/Berlin",
             viewport={"width": 1366, "height": 768},
+            proxy=proxy_playwright(self.proxy),
             args=["--disable-blink-features=AutomationControlled",
                   "--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"])
         await apply_fingerprint(self.browser, self.seed)
@@ -59,10 +62,11 @@ class Browser:
 
 async def new_context(profile: dict | None = None) -> Browser:
     """Kurzform: liefert einen gestarteten Browser (persistenter Kontext).
-    `profile` kann {'headless': bool, 'seed': int} tragen."""
+    `profile` kann {'headless': bool, 'seed': int, 'proxy': str} tragen."""
     p = profile or {}
     b = Browser(headless=bool(p.get("headless", True)),
                 seed=p.get("seed", 1337),
-                user_data_dir=p.get("user_data_dir", _STORAGE))
+                user_data_dir=p.get("user_data_dir", _STORAGE),
+                proxy=p.get("proxy"))
     await b.start()
     return b

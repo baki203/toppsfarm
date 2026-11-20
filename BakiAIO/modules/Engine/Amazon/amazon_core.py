@@ -190,17 +190,20 @@ class AmazonClient:
     Endpunkte/Logik laut KNOWLEDGE.md (behauptet-Markierung beibehalten)."""
 
     def __init__(self, cc: str, email: str = "", log: SkyLogger | None = None,
-                 store: SessionStore | None = None):
+                 store: SessionStore | None = None, proxy: str | None = None):
         self.cc = cc.upper()
         self.domain = domain_for(self.cc)
         self.currency = currency_for(self.cc)
         self.email = email
         self.log = log or SkyLogger()
         self.store = store or SessionStore()
-        self.s = AsyncSession(impersonate="chrome", timeout=30, headers={
-            "user-agent": UA,
-            "accept-language": DOMAINS[self.cc][2],
-        })
+        kw = {
+            "impersonate": "chrome", "timeout": 30,
+            "headers": {"user-agent": UA, "accept-language": DOMAINS[self.cc][2]},
+        }
+        if proxy:
+            kw["proxy"] = proxy
+        self.s = AsyncSession(**kw)
 
     async def __aenter__(self):
         return self

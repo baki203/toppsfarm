@@ -80,13 +80,27 @@ class AmazonAIOModule:
     def _log(self, cc: str) -> SkyLogger:
         return SkyLogger(site=f"Amazon{cc.upper()}")
 
-    def _client(self, cc: str, email: str = "", log: SkyLogger | None = None) -> AmazonClient:
-        return AmazonClient(cc, email=email, log=log, store=SessionStore("amazon"))
+    def _client(self, cc: str, email: str = "", log: SkyLogger | None = None,
+                proxy: str | None = None) -> AmazonClient:
+        return AmazonClient(cc, email=email, log=log, store=SessionStore("amazon"),
+                            proxy=proxy)
+
+    async def _acquire_proxy(self, site: str) -> str | None:
+        """Liefert einen lebenden Proxy (1 Lauf = 1 Proxy, round-robin)."""
+        from modules.Engine.Shopify.shopify_core import ProxyPool, State
+        from modules.Engine.Shopify.shopify_core import Settings
+        cfg = Settings.load()
+        pool = ProxyPool(State(str(cfg.path(cfg.state_db))), site)
+        return await pool.acquire()
 
     async def generate(self, cc: str) -> None:
         """1 Account Generator: erstellt Konten non-PVA, OTP per Catch-All-Mail."""
         log = self._log(cc)
         bar = StatusBar(log)
+        proxy = await self._acquire_proxy("amazon")
+        if proxy:
+            from utilities.proxy import mask_proxy
+            log.line("Proxy", "", "", mask_proxy(proxy), "info")
         try:
             n = int(input("  Anzahl Konten [1]: ").strip() or "1")
         except ValueError:
@@ -96,17 +110,27 @@ class AmazonAIOModule:
         print("  Aufforderung (A10).")
         for i in range(n):
             log.line("Gen", "", "", f"Konto {i+1}/{n} anlegen ...", "info")
-            acc = await self._gen_one(cc, log)
+            acc = await self._gen_one(cc, log, proxy)
             if acc:
                 log.status("created")
                 log.line("Gen", "", acc["email"], "Konto erstellt", "ok")
+                # Artifact: Erfolg zaehlt nur mit Datei unter accounts/Amazon/
+                d = ROOT / "accounts" / "Amazon"
+                d.mkdir(parents=True, exist_ok=True)
+                f = d / f"{acc['email']}.txt"
+                f.write_text(
+                    "site: amazon\nemail: %s\npassword: %s\n"
+                    "first_name: %s\nlast_name: %s\n" % (
+                        acc["email"], acc["password"],
+                        acc.get("first_name", ""), acc.get("last_name", "")),
+                    encoding="utf-8")
             else:
                 log.status("error")
                 log.line("Gen", "", "", "Konto fehlgeschlagen", "err")
             bar.render()
         print()
 
-    async def _gen_one(self, cc: str, log: SkyLogger) -> dict | None:
+    async def _gen_one(self, cc: str, log: SkyLogger, proxy: str | None = None) -> dict | None:
         """Einzelnes Konto: Identitaet + Catch-All-Mail + Browser-Registrierung."""
         from utilities.mailbox import create_inbox, wait_for_link
         from modules.Engine.Shopify.shopify_core import Settings
@@ -120,7 +144,9 @@ class AmazonAIOModule:
         if not inbox or not inbox.get("address"):
             return None
         browser = Browser(user_data_dir=str(ROOT / "var" / f"browser-amazon-{cc}"),
-                          headless=True, seed=ident.seed if hasattr(ident, "seed") else None)
+                          headless=True,
+                          seed=ident.seed if hasattr(ident, "seed") else None,
+                          proxy=proxy)
         await browser.start()
         human = Human()
         try:
@@ -181,7 +207,8 @@ class AmazonAIOModule:
             if not email:
                 continue
             log.line("Reset", "", email, "Passwort-Reset anstossen ...", "info")
-            ok = await self._reset_one(cc, email, new_pass, log)
+            ok = await self._reset_one(cc, email, new_pass, log,
+                                       proxy=await self._acquire_proxy("amazon"))
             log.status("ok" if ok else "error")
             log.line("Reset", "", email, "Reset gesendet" if ok else "Reset fehlgeschlagen",
                      "ok" if ok else "err")
@@ -189,7 +216,7 @@ class AmazonAIOModule:
         print()
 
     async def _reset_one(self, cc: str, email: str, new_pass: str,
-                         log: SkyLogger) -> bool:
+                         log: SkyLogger, proxy: str | None = None) -> bool:
         """Sendet Passwort-Reset-Link (forgotpassword) an die Mailbox."""
         from utilities.mailbox import create_inbox, wait_for_link
         from modules.Engine.Shopify.shopify_core import Settings
@@ -197,7 +224,7 @@ class AmazonAIOModule:
         inbox = await create_inbox(cfg)
         if not inbox or not inbox.get("address"):
             return False
-        async with self._client(cc, email=email, log=log) as c:
+        async with self._client(cc, email=email, log=log, proxy=proxy) as c:
             try:
                 r = await c.s.get(c.url("/ap/forgotpassword"))
                 if r.status_code != 200:
@@ -319,15 +346,17 @@ class AmazonAIOModule:
             email = acc.get("email")
             pwd = acc.get("password")
             log.line("Farmer", asin, email, "Add to cart + wishlist ...", "info")
-            ok = await self._farm_one(cc, asin, email, pwd)
+            ok = await self._farm_one(cc, asin, email, pwd,
+                                      proxy=await self._acquire_proxy("amazon"))
             log.status("ok" if ok else "error")
             log.line("Farmer", asin, email, "Aktivitaet erhoht" if ok else "Fehler",
                      "ok" if ok else "err")
             bar.render()
         print()
 
-    async def _farm_one(self, cc: str, asin: str, email: str, pwd: str) -> bool:
-        async with self._client(cc, email=email) as c:
+    async def _farm_one(self, cc: str, asin: str, email: str, pwd: str,
+                    proxy: str | None = None) -> bool:
+        async with self._client(cc, email=email, proxy=proxy) as c:
             if not await c.restore():
                 if not pwd or not await c.signin(pwd):
                     return False
@@ -382,7 +411,8 @@ class AmazonAIOModule:
             email = acc.get("email")
             pwd = acc.get("password")
             log.line("ACO", pid, email, "Starte Checkout ...", "info")
-            ok = await self._aco_one(cc, pid, email, pwd, ship)
+            ok = await self._aco_one(cc, pid, email, pwd, ship,
+                                     proxy=await self._acquire_proxy("amazon"))
             log.status("ok" if ok else "error")
             log.line("ACO", pid, email,
                      "Checkout-Link erzeugt" if ok else "Checkout fehlgeschlagen",
@@ -391,8 +421,8 @@ class AmazonAIOModule:
         print()
 
     async def _aco_one(self, cc: str, pid: str, email: str, pwd: str,
-                       ship: str) -> bool:
-        async with self._client(cc, email=email) as c:
+                   ship: str, proxy: str | None = None) -> bool:
+        async with self._client(cc, email=email, proxy=proxy) as c:
             if not await c.restore():
                 if not pwd or not await c.signin(pwd):
                     return False

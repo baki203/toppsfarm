@@ -20,9 +20,10 @@ class RetailMonitor:
     Unterklasse (self.fetch)."""
 
     def __init__(self, cfg: Settings, state: State, notifier: Notifier,
-                 hosts: list[str]):
+                 hosts: list[str], proxy: str | None = None):
         self.cfg, self.state, self.notifier = cfg, state, notifier
         self.hosts = hosts
+        self.proxy = proxy
         self.stop = asyncio.Event()
         self._seen: dict[str, set] = {}
         self.q = Quality(self.name)
@@ -46,7 +47,7 @@ class RetailMonitor:
                 pass
 
     async def _poll(self, host) -> bool:
-        s = session(self.cfg)
+        s = session(self.cfg, self.proxy)
         changed = False
         try:
             self.q.increment("attempts")
@@ -86,17 +87,18 @@ class RetailCheckout:
         self.cfg, self.notifier, self.name = cfg, notifier, name
         self.q = Quality(name)
 
-    async def run(self, url: str, dry_run: bool = True) -> dict:
+    async def run(self, url: str, dry_run: bool = True, proxy: str | None = None) -> dict:
         from utilities.browser import Browser
         from utilities.human import Human
-        browser = Browser(headless=True, seed=random.randint(0, 2**31))
+        browser = Browser(headless=True, seed=random.randint(0, 2**31),
+                          proxy=proxy)
         await browser.start()
         res = {"ok": False, "note": "", "url": url, "order": None}
         self.q.increment("attempts")
         # A4: Geo-Pruefung gegen ship_country, sofern aktiviert
         if self.cfg.geo.get("enabled", False):
             from modules.Engine.Shopify.shopify_core import geo_check
-            ok, hinweis = await geo_check(self.cfg, self._geo_profile(), None)
+            ok, hinweis = await geo_check(self.cfg, self._geo_profile(), proxy)
             if not ok:
                 res.update(note=f"banned:geo ({hinweis})")
                 self.q.banned("geo")
@@ -200,4 +202,3 @@ class RetailModule(BaseModule):
 
     def make_checkout(self, cfg, notifier):
         return RetailCheckout(cfg, notifier, self.title.lower())
-

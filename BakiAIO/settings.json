@@ -48,6 +48,7 @@
     "strict": true
   },
   "proxy": {
+    "source": "auto",
     "precheck": true,
     "check_timeout_s": 15
   },

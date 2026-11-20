@@ -1,0 +1,75 @@
+Hauptstraße
+Bahnhofstraße
+Schulstraße
+Gartenstraße
+Schulweg
+Kirchstraße
+Dorfstraße
+Bergstraße
+Feldstraße
+Parkstraße
+Lindenstraße
+Rathausstraße
+Mühlenweg
+Schillerstraße
+Goethestraße
+Bachstraße
+Waldstraße
+Blumenstraße
+Goethestraße
+Ringstraße
+Am Markt
+Schillerweg
+Birkenweg
+Erlenweg
+Eichenweg
+Lindenweg
+Ahornweg
+Am Sportplatz
+Zur Mühle
+Am Dorfplatz
+Neue Straße
+Lange Straße
+Breite Straße
+Höhenweg
+Talstraße
+Sonnengasse
+Rosenstraße
+Amselweg
+Finkenweg
+Im Wiesengrund
+Hinter dem Hof
+An der Kirche
+Gartenweg
+Tulpenweg
+Wiesenweg
+Auenstraße
+Am Anger
+Bachgasse
+Feldweg
+Kirchweg
+Poststraße
+Industriestraße
+Gewerbepark
+Am Bahndamm
+Zum Sportfeld
+Am Seeblick
+Schmiedegasse
+Marktstraße
+Beethovenstraße
+Mozartstraße
+Drosselweg
+Lerchenweg
+Nelkenweg
+Fliederweg
+Kastanienweg
+Am Stadtgraben
+Vorm Berg
+Untere Straße
+Obere Straße
+Hintere Gasse
+Vor dem Tor
+Steinweg
+Brückenweg
+Querweg
+Sonnenweg

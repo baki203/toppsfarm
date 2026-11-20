@@ -55,7 +55,8 @@ class PSNCheckout(RetailCheckout):
         import random
         browser = Browser(headless=not self.cfg.geo.get("headful", False),
                           seed=random.randint(0, 2**31),
-                          user_data_dir=self.user_data_dir)
+                          user_data_dir=self.user_data_dir,
+                          proxy=proxy)
         await browser.start()
         res = {"logged_in": False, "login_performed": False, "note": "", "url": ""}
         try:
@@ -105,9 +106,9 @@ class PSNCheckout(RetailCheckout):
             await browser.stop()
 
     async def run(self, url: str, dry_run: bool = True, email: str | None = None,
-                  password: str | None = None) -> dict:
+                  password: str | None = None, proxy: str | None = None) -> dict:
         if email and password:
-            li = await self.login(email, password)
+            li = await self.login(email, password, proxy)
             if not li["logged_in"] and not dry_run:
                 return {"ok": False, "note": "login fehlgeschlagen",
                         "url": li.get("url", "")}

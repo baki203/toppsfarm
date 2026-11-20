@@ -27,22 +27,31 @@ class AccountGenerator:
     signup_url: str
     account_dir: str
 
-    def __init__(self, count: int = 1, headless: bool = True, seed: int | None = None):
+    def __init__(self, count: int = 1, headless: bool = True, seed: int | None = None,
+                 proxy: str | None = None):
         self.count = count
         self.headless = headless
         self.seed = seed if seed is not None else random.SystemRandom().randint(0, 2**31)
+        self.proxy = proxy
         self.idgen = IdentityGenerator(seed=self.seed)
         self.q = Quality(self.site)
 
     async def run(self) -> list[str]:
         from modules.Engine.Shopify.shopify_core import geo_check
+        from utilities.proxy import is_proxy_auth_error, mask_proxy
         cfg = _load_settings()
         self._cfg = cfg
         d = ROOT / self.account_dir
         d.mkdir(parents=True, exist_ok=True)
         made = []
+        # 1 Konto = 1 Proxy: ein Proxy pro Generatorlauf, kein Wechsel
+        proxy = self.proxy
+        if not proxy:
+            from modules.Engine.Shopify.shopify_core import ProxyPool, State
+            pool = ProxyPool(State(str(cfg.path(cfg.state_db))), self.site)
+            proxy = await pool.acquire()
         browser = Browser(user_data_dir=str(ROOT / "var" / f"browser-{self.site}"),
-                          headless=self.headless, seed=self.seed)
+                          headless=self.headless, seed=self.seed, proxy=proxy)
         await browser.start()
         try:
             for _ in range(self.count):
@@ -55,7 +64,7 @@ class AccountGenerator:
                                    last_name=ident.last_name,
                                    address1=f"{ident.street} {ident.house_no}".strip(),
                                    zip=ident.zip, city=ident.city, country="DE")
-                    ok, hinweis = await geo_check(cfg, prof, None)
+                    ok, hinweis = await geo_check(cfg, prof, proxy)
                     if not ok:
                         self.q.banned(f"geo ({hinweis})")
                         continue
@@ -63,7 +72,13 @@ class AccountGenerator:
                 try:
                     account = await self._register(browser, ident, inbox)
                     self.q.success()
-                except Exception:
+                except Exception as exc:
+                    # Proxy-Auth-Fehler klar als proxy-auth loggen, nicht als Ban
+                    if is_proxy_auth_error(str(exc)):
+                        print(f"[{self.site}] proxy-auth ({mask_proxy(proxy)}): {type(exc).__name__}")
+                        self.q.banned("proxy-auth")
+                        continue
+                    print(f"[{self.site}] generator {type(exc).__name__}: {exc}")
                     self.q.banned(f"generator-{self.site}")
                     continue
                 f = d / f"{account['email']}.txt"

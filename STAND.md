@@ -97,7 +97,25 @@ Stand 2026-11-20, ARBEITSWEISE (8 Punkte) + 4 QUALITY-Luecken. Deutsch. Je Punkt
    Auth-/forgotpassword-Endpunkte liefern 202/404 (Anti-Bot) - Modul nutzt SessionStore (echte
    Browser-Cookies) + Browser-Generator dafuer; ACO/Farmer/Reset brauchen echte eingeloggte Session.
 
+## Stand Punkte
+17 PROXY-INTEGRATION + GENERATOR-LAUF: erledigt. Zentral utilities/proxy.py (source auto|shared|module
+   aus settings.json proxy.source, normalize host:port:user:pass + http://user:pass@host:port +
+   user:pass@host, Playwright-Dict, mask user:***@host, auth-Fehlerdetekt, parse). Quellen: je Modul
+   proxies/<modul>/ > shared proxies/proxies.txt (alle leer -> shared aktiv). Verdrahtet: shopify_core
+   (ProxyPool round-robin), retail_core (Monitor/Checkout), account_base (AccountGenerator+run_generator),
+   AmazonAIO/amazon_core, PSN login, browser.Browser. Auth-Fehler -> proxy-auth (kein Ban). Vorpruefung
+   proxycheck 5 Hosts (amazon.de/nike.com/pokemoncenter.com/playstation.com/de.topps.com). Daten
+   data/de_*.txt (first/last/street/places zip;city;area_code) angelegt (IdentityError behoben). Amazon
+   generate() schreibt jetzt Artifact accounts/Amazon/<email>.txt. Getestet (je 1 Task, 1 lebender Proxy):
+   NikeGen 1/1 Artifact, RiftboundGen 1/1 Artifact, AmazonGen 1/1 Artifact (mailtm, non-PVA), SNKRS-
+   Checkout-Dryrun ok, MediaMarkt+Saturn-Dryrun -> /de/checkout ok, Topps-Selftest 4/4 200, Topps-
+   Drydrop -> echter shop-de.topps.com/cart/c/ Checkout-Link (storefront, obwohl products.json 403),
+   PSN-Checkout-Dryrun ok + Login navigiert zur Sony-Seite (Test-Credentials). compileall sauber.
+   Committet 2013e6e.
+
 ## WEITER
 Naechste Phase laut VORGEHEN.txt: B Amazon-Generator (non-PVA, mehrere Catch-All-Domains,
 ADDRESS-Modus in 2. Session, Selftest). Offen: echter PSN-Anmeldetest braucht echte Credentials;
-Amazon ACO/Reset/Farmer/Invites brauchen echte eingeloggte Browser-Session (Session Manager).
+Amazon ACO/Reset/Farmer/Invites brauchen echte eingeloggte Browser-Session (Session Manager);
+products.json/de.topps Storefront-GraphQL ueber Proxy weiterhin 403 (Cloudflare) - Storefront-Weg
+fuer Checkout-Link funktioniert; volle 1000er-Proxy-Vorpruefung (~40 min) nur in Background/Chunks.

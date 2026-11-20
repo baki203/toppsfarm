@@ -1,0 +1,55 @@
+10115;Berlin;030
+20095;Hamburg;040
+80331;München;089
+50667;Köln;0221
+60311;Frankfurt am Main;069
+70173;Stuttgart;0711
+40213;Düsseldorf;0211
+44135;Dortmund;0231
+45127;Essen;0201
+28195;Bremen;0421
+01067;Dresden;0351
+04109;Leipzig;0341
+30159;Hannover;0511
+90402;Nürnberg;0911
+23552;Lübeck;0451
+68159;Mannheim;0621
+79098;Freiburg im Breisgau;0761
+18055;Rostock;0381
+14467;Potsdam;0331
+72070;Tübingen;07071
+96047;Bamberg;0951
+93047;Regensburg;0941
+38100;Braunschweig;0531
+49074;Osnabrück;0541
+44787;Bochum;0234
+67059;Ludwigshafen;0621
+55116;Mainz;06131
+06108;Halle (Saale);0345
+09111;Chemnitz;0371
+27568;Bremerhaven;0471
+34117;Kassel;0561
+53111;Bonn;0228
+26122;Oldenburg;0441
+39104;Magdeburg;0391
+54290;Trier;0651
+97070;Würzburg;0931
+52062;Aachen;0241
+42651;Solingen;0212
+33602;Bielefeld;0521
+49080;Münster;0251
+76131;Karlsruhe;0721
+69115;Heidelberg;06221
+85049;Ingolstadt;0841
+89073;Ulm;0731
+29221;Celle;05141
+30853;Langenhagen;0511
+30161;Hannover (Nordstadt);0511
+46483;Wesel;0281
+53721;Siegburg;02241
+51545;Waldbröl;02291
+32756;Detmold;05231
+32791;Lage;05232
+58089;Hagen;02331
+45525;Hattingen;02324
+58332;Schwelm;02336
