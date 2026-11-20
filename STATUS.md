@@ -241,3 +241,17 @@ sitemap | 200 | 15 handles | letztes: darius-acuff-jr-2026-27-nba-topps-now-r-ca
 pdp | {'id': 3856205069, 'handle': 'darius-acuff-jr-2026-27-nba-topps-now-r-card-96', 'variants': [{'id': 51171485516016, 'price': '9.99', 'available': True}, {'id': 51171485548784, 'price': '46.99', 'available': True}, {'id': 51171485581552, 'price': '81.99', 'available': True}, {'id': 51171485614320, 'price': '150.99', 'available': True}]}
 ```
 Einschraenkungen des Sitemap-Wegs: Produkt-ID ist dort ein CRC aus Host+Handle (die echte Shopify-Produkt-ID steht nicht eindeutig im HTML); Restocks alter Produkte erkennt er nicht, nur neue Handles. Im laufenden Betrieb (watch) ist der Sitemap-Weg nicht getestet, nur die beiden Funktionen einzeln.
+
+### Matrix 7 - Storefront-API
+Der Token steht nicht in einem JS-Bundle, sondern direkt im HTML der Startseite (Next.js-Datenblock): `storeDomain: topps-deu.myshopify.com`, `storefrontAccessToken` (32 Hex-Zeichen, oeffentlicher Storefront-Token). `storefront_cfg()` liest beides pro Host zur Laufzeit aus, nichts ist fest einkodiert.
+GraphQL-products-Query (`products(first:3, sortKey:CREATED_AT, reverse:true)`):
+```
+POST topps-deu.myshopify.com/api/2024-10/graphql.json | 200 | application/json; charset=utf-8 | 1442 B | {"data":{"products":{"edges":[{"node":{"handle":"darius-acuff-jr-2026-
+POST shop-de.topps.com/api/2024-10/graphql.json | 200 | application/json; charset=utf-8 | 1442 B | {"data":{"products":{"edges":[{"node":{"handle":"darius-acuff-jr-2026-
+```
+Ueber `storefront_products()` aus dem Quelltext:
+```
+storefront p1 | 200 | 250 produkte | cursor True | 1.8s
+storefront p2 | 200 | 250
+```
+Ergebnis: 200 mit Produkten, Variant-IDs, Preis und `availableForSale`. Das ist jetzt die Hauptquelle des Monitors (2 Seiten a 250, neueste zuerst).
