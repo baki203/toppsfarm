@@ -362,6 +362,81 @@ class State:
         await self.q(f)
 
 
+# --------------------------------------------------------------- cloudflare
+CF_COOKIE_FILE = ROOT / "var" / "cf_cookies.json"
+_CF_CACHE: dict | None = None
+
+
+def cf_cookies_file() -> Path:
+    CF_COOKIE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    return CF_COOKIE_FILE
+
+
+def cf_cookies() -> dict | None:
+    """Gesperrte Cloudflare-Cookies (cf_clearance, __cf_bm) aus der letzten
+    Browser-Sitzung. liefert {} wenn keine vorhanden sind, sonst {name: wert}."""
+    global _CF_CACHE
+    if _CF_CACHE is not None:
+        return _CF_CACHE
+    p = cf_cookies_file()
+    _CF_CACHE = {}
+    if p.exists():
+        try:
+            import json as _json
+            _CF_CACHE = _json.loads(p.read_text(encoding="utf-8"))
+        except Exception:
+            _CF_CACHE = {}
+    return _CF_CACHE
+
+
+async def cf_refresh(host: str, headless: bool = False) -> dict:
+    """Oeffnet den Browser (einmalig, nicht headless damit Cloudflare den
+    Turnstile loslaesst), wartet auf cf_clearance, speichert die Cookies fuer
+    curl_cffi und liefert sie zurueck. -> {name: wert} oder {}."""
+    from playwright.async_api import async_playwright
+    dir = (ROOT / "var" / "browser-cf").resolve()
+    pw = await async_playwright().start()
+    ctx = await pw.chromium.launch_persistent_context(
+        str(dir), headless=headless, user_agent=UA, locale="de-DE",
+        viewport={"width": 1366, "height": 768},
+        args=["--disable-blink-features=AutomationControlled", "--no-sandbox",
+              "--disable-gpu", "--disable-dev-shm-usage"])
+    page = ctx.pages[0] if ctx.pages else await ctx.new_page()
+    await page.add_init_script(
+        "Object.defineProperty(navigator,'webdriver',{get:()=>undefined});"
+        "window.chrome={runtime:{}};")
+    out = {}
+    try:
+        await page.goto(f"https://{host}/", wait_until="domcontentloaded", timeout=60000)
+        end = time.time() + 120
+        while time.time() < end:
+            ck = await ctx.cookies()
+            if any(c["name"] == "cf_clearance" for c in ck):
+                out = {c["name"]: c["value"] for c in ck
+                       if c["name"] in ("cf_clearance", "__cf_bm")}
+                break
+            await page.wait_for_timeout(2000)
+    except Exception as exc:
+        LOG.warning("cf_refresh: %s", exc)
+    finally:
+        await ctx.close()
+        await pw.stop()
+    if out:
+        import json as _json
+        cf_cookies_file().write_text(_json.dumps(out), encoding="utf-8")
+        global _CF_CACHE
+        _CF_CACHE = out
+    return out
+
+
+def _with_cf(kw: dict) -> dict:
+    """Haengt gespeicherte Cloudflare-Cookies an die Request-Optionen."""
+    ck = cf_cookies()
+    if ck:
+        kw["cookies"] = {**kw.get("cookies", {}), **ck}
+    return kw
+
+
 # --------------------------------------------------------------- http
 def headers(cfg: Settings, host: str, json_mode: bool = False) -> dict:
     # Minimum: nur accept und accept-language. user-agent, sec-ch-ua, sec-fetch-*
@@ -377,7 +452,7 @@ def session(cfg: Settings, proxy: str | None = None) -> AsyncSession:
     kw = {"impersonate": cfg.impersonate, "timeout": cfg.timeout_s}
     if proxy:
         kw["proxy"] = proxy
-    return AsyncSession(**kw)
+    return AsyncSession(**_with_cf(kw))
 
 
 async def warm(s: AsyncSession, cfg: Settings, host: str) -> bool:
@@ -1069,7 +1144,8 @@ async def cmd_drop(cfg, state, pool, notifier, solver, host, vid, tasks, qty, mo
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="toppsfarm")
     sub = ap.add_subparsers(dest="cmd", required=True)
-    for c in ("setup", "selftest", "profiles-check", "stats", "install-browser"):
+    for c in ("setup", "selftest", "profiles-check", "stats", "install-browser",
+              "cf-refresh"):
         sub.add_parser(c)
     w = sub.add_parser("watch")
     w.add_argument("--mode", default="cart", choices=["cart", "browser"])
@@ -1108,6 +1184,14 @@ def main(argv=None):
             CONSOLE.print(f"{p.id}: {'ok' if not iss else ','.join(iss)}")
     elif a.cmd == "stats":
         CONSOLE.print(asyncio.run(state.stats()))
+    elif a.cmd == "cf-refresh":
+        host = cfg.hosts[0] if cfg.hosts else "de.topps.com"
+        out = asyncio.run(cf_refresh(host))
+        if out:
+            CONSOLE.print(f"[green]Cloudflare-Cookies geholt: "
+                          f"{', '.join(sorted(out))}[/]")
+        else:
+            CONSOLE.print("[red]Keine cf_clearance erhalten.[/]")
     elif a.cmd == "selftest":
         asyncio.run(cmd_selftest(cfg, state, pool, notifier))
     elif a.cmd == "watch":
@@ -1132,6 +1216,7 @@ class ToppsModule(BaseModule):
         ("Statistik", ["stats"], []),
         ("Setup erneut ausfuehren", ["setup"], []),
         ("Browser-Engine installieren", ["install-browser"], []),
+        ("Cloudflare-Cookies erneuern", ["cf-refresh"], []),
     ]
 
     def call(self, argv) -> int:
