@@ -59,7 +59,15 @@ Stand 2026-11-20, ARBEITSWEISE (8 Punkte) + 4 QUALITY-Luecken. Deutsch. Je Punkt
    core.->utilities., modules/__init__.py alte Pfade als Aliase. Getestet: compileall sauber, Menue 1-14
    startet (13-14 frei), alle Modul-Factories importierbar, Topps-Selftest 4/4 200. Committet.
 
+## Stand Punkte
+13 TOPPS-DROP-FERTIG: erledigt. shopify_core.py cmd_drop um --at HH:MM (Scheduler _drop_wait_until),
+   --target (Name aus targets.yaml), --dry, max_price-Pruefung (HttpCheckout._price_ok ueber storefront/
+   products.json, kein Block wenn unbekannt), Prewarm cf_refresh vor Drop. Orchestrator.spawn reicht
+   max_price durch. targets.yaml: Chrome-UEFA + Topps-EU-Hosts (de/es/fr/it), max_price/asin-Felder.
+   Getestet: compileall sauber, HttpCheckout liefert echten de.topps.com Checkout-Link (storefront
+   cartCreate -> https://shop-de.topps.com/cart/c/...), cmd_drop 1 Task -> 1 ok/0 gesperrt (dry).
+   config/profiles.yaml Testprofil angelegt. Committet.
+
 ## WEITER
 Naechste Phase laut VORGEHEN.txt: B Amazon-Generator (non-PVA, mehrere Catch-All-Domains,
-ADDRESS-Modus in 2. Session, Selftest). Plus: 13 Topps-Drop fertigstellen (targets.yaml, --at, cart/queue),
-14 PSN-Login+Queue, 15 release.zip + EXE-Auto-Update.
+ADDRESS-Modus in 2. Session, Selftest). Plus: 14 PSN-Login+Queue, 15 release.zip + EXE-Auto-Update.

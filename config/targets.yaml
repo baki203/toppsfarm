@@ -1,7 +1,23 @@
-﻿# Optional: harte Ziele. Ohne Eintrag laeuft Watch auf alles.
+﻿# Harte Ziele. Ohne Eintrag laeuft Watch auf alles.
+# name: Anzeige/--target, match: Handle-Substring, hosts: erlaubte Shops,
+# variant: (optional) feste Variante, quantity, mode: cart/browser, tasks,
+# max_price: optional harte Preisgrenze, asin: optional (Amazon) -> hier leer.
 - name: "Chrome UEFA"
   match: "chrome-uefa"
-  hosts: [de.topps.com]
+  hosts: [de.topps.com, es.topps.com, fr.topps.com, it.topps.com]
   quantity: 1
   mode: cart
   tasks: 10
+  max_price: 0
+
+# Beispiel fuer einen Topps-EU-Drop. Variante/Handle nach Live-Verfuegbarkeit
+# eintragen, sonst zuerst `watch` laufen lassen und Variante aus dem Log nehmen.
+- name: "Topps Erstling"
+  match: ""
+  variant: 0
+  hosts: [de.topps.com]
+  quantity: 1
+  mode: cart
+  tasks: 5
+  max_price: 0
+  asin: ""

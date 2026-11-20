@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """shopify_core - gemeinsame Shopify-Engine fuer alle Shopify-basierten Module.
 HTTP-first, Browser nur Fallback. Modulname wird ueber MODULE gesetzt."""
 from __future__ import annotations
@@ -798,6 +798,10 @@ class HttpCheckout:
                 res["note"] = "warmup"
                 await self.pool.report_proxy(proxy, False)
                 return res
+            maxp = float(task.get("max_price") or 0)
+            if maxp and not await self._price_ok(s, host, task, maxp):
+                res["note"] = "price over max_price"
+                return res
             r = await s.post(f"https://{host}/cart/add.js",
                              json={"id": task["variant"], "quantity": task.get("qty", 1)},
                              headers=headers(self.cfg, host, True))
@@ -855,6 +859,28 @@ class HttpCheckout:
             return res
         finally:
             await s.close()
+
+    async def _price_ok(self, s, host, task, maxp) -> bool:
+        """Prueft den aktuellen Preis der Variante ueber /products.json
+        bzw. die Storefront-API. True, wenn er unter maxp liegt."""
+        try:
+            st, items, _ = await storefront_products(s, self.cfg, host, 200)
+            if st == 200:
+                for p in items or []:
+                    for v in p.get("variants", []) or []:
+                        if int(v.get("id", 0)) == int(task["variant"]):
+                            price = float(v.get("price") or 0)
+                            return price > 0 and price <= maxp
+            st, items = await products_json(s, self.cfg, host, 250)
+            if st == 200:
+                for p in items or []:
+                    for v in p.get("variants", []) or []:
+                        if int(v.get("id", 0)) == int(task["variant"]):
+                            price = float(v.get("price") or 0)
+                            return price > 0 and price <= maxp
+        except Exception:
+            pass
+        return True  # Preis unbekannt -> nicht blockieren
 
     async def _storefront_cart_link(self, s, host, task) -> str | None:
         """Checkout-Link ueber die Storefront-cartCreate-API fuer Next.js-Shops,
@@ -1140,7 +1166,7 @@ class Orchestrator:
                 return p
         return None
 
-    async def spawn(self, host, vid, qty, mode, count, card_http=False):
+    async def spawn(self, host, vid, qty, mode, count, card_http=False, max_price=0):
         for _ in range(count):
             p = await self.pick()
             if not p:
@@ -1150,7 +1176,8 @@ class Orchestrator:
             proxy = await self.pool.acquire(p.proxy)
             self.tasks.append(asyncio.create_task(self._run(tid, {
                 "host": host, "variant": vid, "qty": qty, "mode": mode,
-                "card_http": card_http, "profile": p, "proxy": proxy})))
+                "card_http": card_http, "max_price": max_price,
+                "profile": p, "proxy": proxy})))
             await asyncio.sleep(random.uniform(.03, .15))
 
     async def _run(self, tid, task):
@@ -1266,18 +1293,59 @@ async def cmd_watch(cfg, state, pool, notifier, solver, mode, hosts):
             await browser.stop()
 
 
-async def cmd_drop(cfg, state, pool, notifier, solver, host, vid, tasks, qty, mode, card):
+async def _drop_wait_until(at: str):
+    """Wartet bis HH:MM (Scheduler). Gibt Sekunden bis dahin zurueck."""
+    h, _, m = at.partition(":")
+    hh, mm = int(h or 0), int(m or 0)
+    import datetime as _dt
+    now = _dt.datetime.now()
+    target = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
+    if target <= now:
+        target = target + _dt.timedelta(days=1)
+    secs = (target - now).total_seconds()
+    CONSOLE.print(f"[bold]Scheduler[/]: warte bis {hh:02d}:{mm:02d} "
+                  f"({int(secs // 60)}min).")
+    await asyncio.sleep(secs)
+
+
+async def cmd_drop(cfg, state, pool, notifier, solver, host, vid, tasks, qty, mode,
+                   card=False, at="", target="", dry=True):
+    if target:
+        t = next((x for x in load_targets()
+                  if x.get("name", "").lower() == target.lower()), None)
+        if not t:
+            CONSOLE.print(f"[red]target '{target}' nicht in config/targets.yaml.[/]")
+            return
+        host = host or (t.get("hosts") or [cfg.hosts[0]])[0]
+        vid = vid or t.get("variant") or t.get("handle")
+        qty = qty or t.get("quantity", 1)
+        tasks = tasks or t.get("tasks", 10)
+        mode = mode if mode else t.get("mode", "cart")
+    if not vid:
+        CONSOLE.print("[red]--variant oder --target mit Variante erforderlich.[/]")
+        return
+    if at:
+        await _drop_wait_until(at)
     if cfg.proxy.get("precheck", True) and pool.items:
         r = await pool.precheck(cfg, host)
         CONSOLE.print(f"[bold]Proxy-Vorpruefung[/]: {r['checked']} geprueft, "
                       f"{r['alive']} ok, {r['dead']} tot -> var/proxystats.csv")
+    CONSOLE.print(f"[bold]drop[/] {host} Variante {vid} x{qty} ({tasks} Tasks, "
+                  f"Modus {mode}{', dry' if dry else ''})")
+    # Prewarm: cf_clearance schon vor dem Loslegen holen
+    try:
+        await cf_refresh(host)
+    except Exception:
+        pass
     http_engine = HttpCheckout(cfg, state, pool, solver, notifier)
     browser = None
     if mode == "browser":
         browser = BrowserCheckout(cfg, pool, solver, notifier)
         await browser.start()
+    maxp = float((next((t for t in load_targets()
+                        if host in (t.get("hosts") or [])) , None) or {}).get("max_price") or 0)
     orch = Orchestrator(cfg, state, pool, notifier, load_profiles(MODULE), http_engine, browser)
-    await orch.spawn(host, vid, qty, mode, tasks, card)
+    await orch.spawn(host, vid, qty, mode, tasks, card and not dry, maxp)
     await orch.drain()
     if browser:
         await browser.stop()
@@ -1301,12 +1369,15 @@ def argv_parser(prog: str = "baki", module: str | None = None):
     w.add_argument("--mode", default="cart", choices=["cart", "browser"])
     w.add_argument("--hosts", default="")
     d = sub.add_parser("drop")
-    d.add_argument("--host", required=True)
-    d.add_argument("--variant", type=int, required=True)
+    d.add_argument("--host", default="")
+    d.add_argument("--variant", type=int, default=None)
     d.add_argument("--tasks", type=int, default=10)
     d.add_argument("--qty", type=int, default=1)
     d.add_argument("--mode", default="cart", choices=["cart", "browser"])
     d.add_argument("--card-http", action="store_true")
+    d.add_argument("--dry", action="store_true", help="Stopp vor Zahlung")
+    d.add_argument("--at", default="", help="HH:MM Wartezeit (Scheduler)")
+    d.add_argument("--target", default="", help="Name aus config/targets.yaml")
     return ap
 
 
@@ -1363,8 +1434,9 @@ def main(argv=None):
         hosts = [h.strip() for h in a.hosts.split(",") if h.strip()] or cfg.hosts
         asyncio.run(cmd_watch(cfg, state, pool, notifier, solver, a.mode, hosts))
     elif a.cmd == "drop":
+        dry = not a.card_http and not getattr(a, "dry", False) is False
         asyncio.run(cmd_drop(cfg, state, pool, notifier, solver, a.host, a.variant,
-                             a.tasks, a.qty, a.mode, a.card_http))
+                             a.tasks, a.qty, a.mode, a.card_http, a.at, a.target, dry))
 
 
 class ShopifyModule(BaseModule):
@@ -1400,7 +1472,7 @@ class ShopifyModule(BaseModule):
                             ENV.get("DISCORD_WEBHOOK_ERRORS", ""))
         solver = Solver(cfg)
         return cmd_drop(cfg, state, pool, notifier, solver, host, variant,
-                        tasks, qty, mode, False)
+                        tasks, qty, mode, False, dry=True)
 
     def call(self, argv) -> int:
         try:
