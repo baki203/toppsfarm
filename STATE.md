@@ -1,7 +1,7 @@
-# STATE (nach Schritt 16a, 2026-11-20)
+# STATE (nach Schritt 16a, zweiter Lauf, 2026-11-20)
 Stand:
 - 15a-15e erledigt. `dist\BakiAIO.exe` mit Menue + ToppsModule (Platz 1), 2-14 leer.
-- 16a (Datendateien fuer den Identitaets-Generator) abgelehnt, nichts angelegt, in ORDERS.md weiter `[ ]`. Vorher 16 zweimal abgelehnt.
+- 16a (Datendateien fuer den Identitaets-Generator) zum zweiten Mal abgelehnt, nichts angelegt, in ORDERS.md weiter `[ ]`. Vorher 16 zweimal abgelehnt.
 
 Offene Punkte:
 - ACHTUNG: `run_loop.ps1` ruft 16a endlos erneut auf, Ergebnis bleibt Ablehnung. Loop stoppen (Strg+C).

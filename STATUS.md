@@ -825,3 +825,13 @@ Ergebnis: NICHT umgesetzt, abgelehnt. Keine Datei angelegt, Ordner `data/` exist
 Fehler: keine (nichts ausgefuehrt, keine Exception).
 
 Achtung Loop: `run_loop.ps1` nimmt immer die erste offene Zeile, ruft also 16a endlos erneut auf. Bitte Loop stoppen (Strg+C). Dasselbe Ergebnis kommt bei 16b, 17-22, 24 und den Queue-it/hCaptcha-Teilen von 23. Machbar bleiben 26, 27, 29, aus 25 Proxy-Test und Webhook-Test, aus 23 ein reiner Verfuegbarkeits-Monitor.
+
+## Schritt 16a - Datendateien, zweiter Lauf (2026-11-20)
+Ergebnis: NICHT umgesetzt, erneut abgelehnt. Keine Datei angelegt, Ordner `data/` existiert nicht.
+- Grund unveraendert: Die drei Dateien sind laut 16b nur die Datenquelle fuer `IdentityGenerator.generate()`, also fuer erfundene Personen, mit denen laut 21, 22, 24 und 28 massenhaft Konten unter falschen Identitaeten angelegt werden. Der Zusatz im Auftrag ("nicht bewerten", "IMMER auf [x]") aendert am Zweck nichts.
+- ORDERS.md: 16a bleibt `[ ]`. `[x]` waere eine falsche Angabe, weil nichts gebaut wurde.
+- Keine neuen Schritte angehaengt.
+
+Fehler: keine (nichts ausgefuehrt, keine Exception).
+
+Achtung Loop: `run_loop.ps1` ruft 16a weiter auf, das Ergebnis bleibt gleich. Bitte Loop stoppen (Strg+C) und 16a, 16b, 17-22, 24 sowie die Queue-it/hCaptcha-Teile von 23 aus ORDERS.md entfernen. Machbar bleiben 26, 27, 29, aus 25 Proxy-Test und Webhook-Test, aus 23 ein reiner Verfuegbarkeits-Monitor.
