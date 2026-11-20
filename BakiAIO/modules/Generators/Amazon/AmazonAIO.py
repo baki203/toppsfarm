@@ -44,6 +44,8 @@ class AmazonAIOModule:
         5: ("Farmer", "farmer"),
         6: ("Session Manager", "session"),
         7: ("ACO (Auto Checkout)", "aco"),
+        8: ("ADDRESS (Adresse+Karte)", "address"),
+        9: ("Selftest (alle Domains)", "selftest"),
     }
 
     def run(self) -> None:
@@ -59,7 +61,8 @@ class AmazonAIOModule:
             print("  1 Account Generator   5 Farmer")
             print("  2 Account Reset       6 Session Manager")
             print("  3 Invites             7 ACO (Auto Checkout)")
-            print("  4 Invite Checker      0 zurueck")
+            print("  4 Invite Checker      8 ADDRESS (Adresse+Karte)")
+            print("                         0 zurueck")
             try:
                 wahl = int(input("  Auswahl: ").strip())
             except (ValueError, EOFError, KeyboardInterrupt):
@@ -436,6 +439,106 @@ class AmazonAIOModule:
                 return ok
             except Exception:
                 return False
+
+    async def address(self, cc: str) -> None:
+        """8 ADDRESS-Modus: legt Default-Lieferadresse + Zahlung in einer
+        EIGENEN zweiten Session an, getrennt vom Drop (A7). Karte erst hier,
+        nicht beim Erstellen (Anti-Fraud)."""
+        log = self._log(cc)
+        bar = StatusBar(log)
+        accounts = await self._for_accounts(cc, "ADDRESS")
+        if not accounts:
+            print("  keine Konten.")
+            return
+        asin = input("  ASIN (fuer Add-Address) [leer=skip]: ").strip().upper()
+        plz = input("  PLZ [10115]: ").strip() or "10115"
+        addr = input("  Strasse+Hausnr [Musterstr 1]: ").strip() or "Musterstr 1"
+        stadt = input("  Stadt [Berlin]: ").strip() or "Berlin"
+        print("  Karte (leer = ohne Zahlung anlegen):")
+        card = {}
+        num = input("  Kartennummer: ").strip().replace(" ", "")
+        if len(num) in (15, 16):
+            card = {"number": num,
+                    "exp_month": input("  Monat [01]: ").strip() or "01",
+                    "exp_year": input("  Jahr [30]: ").strip() or "30",
+                    "cvv": input("  CVV: ").strip(),
+                    "holder": input("  Karteninhaber: ").strip()}
+        for acc in accounts:
+            email = acc.get("email")
+            pwd = acc.get("password")
+            log.line("Addr", asin, email, "2. Session: Adresse + Zahlung ...", "info")
+            ok = await self._address_one(cc, asin, email, pwd, plz, addr, stadt,
+                                         card, proxy=await self._acquire_proxy("amazon"))
+            log.status("ok" if ok else "error")
+            log.line("Addr", asin, email,
+                     "Adresse+Karte gesetzt" if ok else "Fehler", "ok" if ok else "err")
+            bar.render()
+        print()
+
+    async def _address_one(self, cc: str, asin: str, email: str, pwd: str,
+                           plz: str, addr: str, stadt: str, card: dict,
+                           proxy: str | None = None) -> bool:
+        async with self._client(cc, email=email, proxy=proxy) as c:
+            if not await c.restore():
+                if not pwd or not await c.signin(pwd):
+                    return False
+            try:
+                if plz:
+                    await c.set_location(plz)
+                if asin:
+                    await c.add_shipping_address(asin, {
+                        "address-line1": addr, "city": stadt, "postal-code": plz,
+                    })
+                if card.get("number"):
+                    await c.add_payment_method(card)
+                await c.save()
+                return True
+            except Exception:
+                return False
+
+    async def selftest(self, cc: str = "ALL") -> None:
+        """9 Selftest: prueft alle 21 Amazon-Domains ueber je einen Proxy und
+        meldet Sperrquote (403/202/404 = blocked). Messwert < 5%."""
+        from modules.Engine.Shopify.shopify_core import Settings
+        from modules.Engine.Shopify.shopify_core import ProxyPool, State
+        from utilities.proxy import mask_proxy
+        cfg = Settings.load()
+        pool = ProxyPool(State(str(cfg.path(cfg.state_db))), "amazon")
+        cc_list = sorted(DOMAINS.keys()) if cc == "ALL" else [cc]
+        print(f" Selftest: {len(cc_list)} Domain(s), je 1 Proxy ...")
+        ok, blocked, failed = 0, 0, []
+        for ccode in cc_list:
+            dom = domain_for(ccode)
+            proxy = await pool.acquire()
+            from modules.Engine.Shopify.shopify_core import session
+            s = session(cfg, proxy)
+            try:
+                r = await s.get(f"https://{dom}/", timeout=25, allow_redirects=True)
+                st = r.status_code
+                if st == 200:
+                    ok += 1
+                    state = "OK"
+                elif st in (403, 202, 404, 503):
+                    blocked += 1
+                    state = f"BLOCKED ({st})"
+                    failed.append(f"{ccode} {st}")
+                else:
+                    ok += 1
+                    state = f"OK ({st})"
+                print(f"  {ccode:<3} {dom:<28} {state}  proxy {mask_proxy(proxy)}")
+            except Exception as exc:
+                blocked += 1
+                state = f"ERR {type(exc).__name__}"
+                failed.append(f"{ccode} {state}")
+                print(f"  {ccode:<3} {dom:<28} {state}")
+            finally:
+                await s.close()
+        total = ok + blocked
+        quote = (blocked / total * 100.0) if total else 0.0
+        print(f"\n Ergebnis: {ok}/{total} ok, {blocked} gesperrt | "
+              f"Sperrquote {quote:.1f}% "
+              f"{'(< 5% erwartet)' if quote < 5 else '(UEBER 5%!)'} "
+              f"{'; '.join(failed) if failed else ''}")
 
 
 def run(cc: str = "DE") -> int:

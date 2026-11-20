@@ -51,12 +51,32 @@ async def create_inbox(cfg=None) -> dict:
         return {"address": acc["address"], "password": password, "provider": "mailtm"}
 
 
+_CATCHALL_RR = 0
+
+
+def _catchall_domains(conf: dict) -> list[str]:
+    """B2: listet alle Catch-All-Domains auf (mail.catchall.domains Liste, sonst
+    mail.catchall.domain Einzelwert). Verhindert Einzel-Domain-Clipping, indem
+    die Konto-Verteilung ueber mehrere Domains laeuft."""
+    doms = conf.get("domains") or []
+    doms = [str(d).strip() for d in doms if str(d).strip()]
+    single = (conf.get("domain") or "").strip()
+    if single and single not in doms:
+        doms.insert(0, single)
+    return doms
+
+
 def _catchall_inbox(conf: dict) -> dict:
-    """Erzeugt eine Catch-All-Adresse `<zufall>@<domain>` (A1). Der IMAP-Zugriff
-    erfolgt ueber das Master-Postfach, an das der Catch-All weiterleitet."""
-    domain = (conf.get("domain") or "").strip()
-    if not domain:
-        raise MailboxError("catchall: keine Domain in settings.json (mail.catchall.domain)")
+    """Erzeugt eine Catch-All-Adresse `<zufall>@<domain>` (A1) auf einer der
+    konfigurierten Domains, round-robin verteilt (B2). Der IMAP-Zugriff erfolgt
+    ueber das Master-Postfach, an das der Catch-All weiterleitet."""
+    global _CATCHALL_RR
+    doms = _catchall_domains(conf)
+    if not doms:
+        raise MailboxError(
+            "catchall: keine Domain in settings.json (mail.catchall.domains oder .domain)")
+    domain = doms[_CATCHALL_RR % len(doms)]
+    _CATCHALL_RR += 1
     local = "".join(random.choice(string.ascii_lowercase + string.digits)
                     for _ in range(12))
     return {"address": f"{local}@{domain}", "password": "",

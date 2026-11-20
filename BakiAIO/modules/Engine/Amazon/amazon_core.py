@@ -293,6 +293,23 @@ class AmazonClient:
         except Exception:
             return False
 
+    async def add_payment_method(self, card: dict) -> bool:
+        """ADDRESS-Modus: Karte als Zahlungsmittel hinterlegen (behauptet laut
+        KNOWLEDGE, Endpunkt variiert je Domain; Grundgeruest per Session).
+        `card` = {holder, number, exp_month, exp_year, cvv}."""
+        try:
+            r = await self.s.post(
+                self.url("/wallet", **{"xkid": self.domain.split(".")[0]}),
+                json={"cardholderName": card.get("holder", ""),
+                      "addCreditCardNumber": card.get("number", ""),
+                      "addCreditCardExpDate": f"{card.get('exp_month','')}/{card.get('exp_year','')}",
+                      "addCreditCardVerificationNumber": card.get("cvv", ""),
+                      "oneClick": "false"},
+                headers={"content-type": "application/json"})
+            return r.status_code in (200, 202)
+        except Exception:
+            return False
+
 
 def load_accounts(site: str = "amazon") -> list[dict]:
     """Laedt Konten aus accounts/<site>/profiles.yaml (gitignored) oder
