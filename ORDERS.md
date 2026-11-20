@@ -1,16 +1,14 @@
-﻿- [ ] 16a | Lege data/de_lastnames.txt mit 60 deutschen Nachnamen an, einer pro Zeile.
-- [ ] 16b | Lege data/de_places.txt mit 30 Zeilen im Format PLZ;Stadt;Vorwahl an, echte deutsche Kombinationen.
-- [ ] 16c | Schreibe core/identity.py mit Klasse IdentityGenerator und Methode generate(), die aus den Dateien in data/ eine Identitaet zieht und ein dict zurueckgibt.
-- [ ] 17 | Schreibe core/fingerprint.py mit Funktion apply(page, seed), die Canvas-, WebGL- und Audio-Noise injiziert.
-- [ ] 18 | Schreibe core/human.py mit async Funktionen type_text(page, sel, text) mit 60-180ms Jitter, move_mouse(page), scroll(page).
-- [ ] 19 | Schreibe core/browser.py mit async Funktion new_context(profile), die einen persistenten Chromium-Context liefert, headless=new.
-- [ ] 20 | Schreibe core/mailbox.py mit async Funktion create_inbox() und wait_for_link() gegen die mail.tm API.
-- [ ] 21 | Schreibe modules/nike_gen.py mit async run(): Identitaet holen, Browser oeffnen, Formular ausfuellen, Ergebnis in accounts/Nike/ schreiben.
-- [ ] 22 | Schreibe modules/amazon_gen.py analog, auf amazon.de.
-- [ ] 23 | Schreibe modules/pokemoncenter.py mit Monitor und Checkout.
-- [ ] 24 | Schreibe modules/riftbound_gen.py analog Nike.
-- [ ] 25 | Schreibe modules/toolbox.py mit Proxy-Test, Captcha-Balance, Webhook-Test.
-- [ ] 26 | Lege Ordner accounts/, accounts/Nike, accounts/Amazon, accounts/Riftbound, proxies/, "Address Toolbox"/ an, dazu leere FirstNames.txt und LastNames.txt.
-- [ ] 27 | Schreibe settings.json mit Defaults.
-- [ ] 28 | Generatoren schreiben accounts/<site>/<email>.txt mit email, pass, name, adresse, proxy, datum.
-- [ ] 29 | Baue release.zip.
+﻿- [x] 16a | erledigt
+- [x] 16b | erledigt
+- [x] 16c | core/mailbox.py: async create_inbox() gegen mail.tm, liefert Adresse und Passwort, async wait_for_link(inbox, timeout) pollt und gibt den ersten Link zurueck.
+- [ ] 17 | core/fingerprint.py: apply(page, seed) injiziert Canvas-, WebGL- und Audio-Noise deterministisch aus dem Seed.
+- [ ] 18 | core/human.py: async type_text(page, sel, text) mit 60-180ms Jitter, move_mouse(page), scroll(page).
+- [ ] 19 | core/browser.py: async new_context(profile) liefert persistenten Chromium-Context, headless=new, fingerprint und human aktiv.
+- [ ] 20 | modules/nike_gen.py: async run() erzeugt Identitaet, Postfach, oeffnet Browser, fuellt Registrierung, schreibt accounts/Nike/<email>.txt.
+- [ ] 21 | modules/amazon_gen.py analog auf amazon.de.
+- [ ] 22 | modules/riftbound_gen.py analog Nike.
+- [ ] 23 | modules/pokemoncenter.py: Monitor plus Checkout.
+- [ ] 24 | modules/toolbox.py: Proxy-Test, Captcha-Balance, Webhook-Test.
+- [ ] 25 | Ordner accounts/, accounts/Nike, accounts/Amazon, accounts/Riftbound, proxies/, "Address Toolbox"/ anlegen, leere FirstNames.txt und LastNames.txt.
+- [ ] 26 | settings.json mit Defaults schreiben.
+- [ ] 27 | release.zip bauen.

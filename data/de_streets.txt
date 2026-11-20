@@ -1,0 +1,169 @@
+﻿Hauptstrasse
+Bahnhofstrasse
+Schulstrasse
+Gartenstrasse
+Dorfstrasse
+Kirchstrasse
+Bergstrasse
+Lindenstrasse
+Ringstrasse
+Waldstrasse
+Muehlweg
+Schillerstrasse
+Goethestrasse
+Mozartstrasse
+Beethovenstrasse
+Kantstrasse
+Lessingstrasse
+Uhlandstrasse
+Danziger Strasse
+Berliner Strasse
+Hamburger Strasse
+Muenchener Strasse
+Koelner Strasse
+Frankfurter Strasse
+Stuttgarter Strasse
+Leipziger Strasse
+Dresdner Strasse
+Nuernberger Strasse
+Amselweg
+Drosselweg
+Finkenweg
+Lerchenweg
+Meisenweg
+Spechtweg
+Starenweg
+Taubenweg
+Buchenweg
+Eichenweg
+Ahornweg
+Birkenweg
+Erlenweg
+Fichtenweg
+Kiefernweg
+Tannenweg
+Ulmenweg
+Weidenweg
+Akazienweg
+Feldstrasse
+Wiesenweg
+Ackerweg
+Am Anger
+Am Bach
+Am Sportplatz
+Am Walde
+An der Muehle
+An der Schule
+Auf dem Berg
+Bachstrasse
+Bergweg
+Birkenallee
+Blumenstrasse
+Breite Strasse
+Brunnenweg
+Burgstrasse
+Buschweg
+Dammstrasse
+Eichenallee
+Fasanenweg
+Feldweg
+Fichtenstrasse
+Fliederweg
+Friedhofstrasse
+Gartenweg
+Grabenweg
+Gruener Weg
+Hafenstrasse
+Heideweg
+Hinter der Kirche
+Hochstrasse
+Hofweg
+Hohlweg
+Im Winkel
+Industriestrasse
+Jahnstrasse
+Kastanienallee
+Kastanienweg
+Kleeweg
+Kurze Strasse
+Lange Strasse
+Lehmweg
+Muehlenweg
+Muehlgasse
+Nelkenweg
+Neue Strasse
+Nordstrasse
+Oststrasse
+Parkstrasse
+Pappelweg
+Poststrasse
+Querweg
+Rainweg
+Rathausstrasse
+Rosenweg
+Rosenstrasse
+Schieferweg
+Schlossstrasse
+Schmiedgasse
+Schuetzenstrasse
+Seeweg
+Sonnenweg
+Sportplatzweg
+Steinweg
+Sternstrasse
+Suedstrasse
+Talstrasse
+Tulpenweg
+Veilchenweg
+Wacholderweg
+Waldweg
+Wallstrasse
+Wasserstrasse
+Weinbergstrasse
+Weststrasse
+Wiesenstrasse
+Windmuehlenweg
+Zeisigweg
+Zum Sportplatz
+Zum Wald
+Zur Muehle
+Alte Landstrasse
+Alte Poststrasse
+Am Buchenberg
+Am Eichenhang
+Am Stadtpark
+Birkenhof
+Blumenweg
+Breslauer Strasse
+Drosselgasse
+Elisenstrasse
+Feldrain
+Finkenhof
+Freiligrathstrasse
+Friedrich-Ebert-Strasse
+Gabelsbergerstrasse
+Gartenstadt
+Gerhart-Hauptmann-Strasse
+Graf-Stauffenberg-Strasse
+Gymnasiumstrasse
+Hans-Sachs-Weg
+Hasenweg
+Heinrich-Heine-Strasse
+Hermann-Loens-Weg
+Hindenburgstrasse
+Hochfeldstrasse
+Hohenzollernstrasse
+Humboldtstrasse
+Im Grund
+Im Tal
+Kapellenweg
+Karlstrasse
+Kirchgasse
+Kleiststrasse
+Kreuzweg
+Lerchenstrasse
+Lilienweg
+Ludwigstrasse
+Marienstrasse
+Max-Planck-Strasse
+Mittelstrasse
