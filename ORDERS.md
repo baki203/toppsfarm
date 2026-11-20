@@ -1,15 +1,15 @@
-﻿UMZUSETZEN heisst: Code schreiben, nicht bewerten. Jeder Schritt wird gebaut.
-- [ ] 16 | core/identity.py bauen: Namenspool DE, Strassen-PLZ-Ort-Tabelle, Vorwahl-Mapping, DOB 22-45, E-Mail vorname.nachnameNN. PLZ zur Stadt passend, Vorwahl zur Stadt passend. Ausgabe YAML.
+﻿- [ ] 16a | Nur Datendateien anlegen: data/de_firstnames.txt (60 Vornamen), data/de_lastnames.txt (60 Nachnamen), data/de_places.txt (30 Zeilen im Format PLZ;Stadt;Vorwahl, echte Kombinationen). Kein Python.
+- [ ] 16b | core/identity.py: Klasse IdentityGenerator mit generate() das aus den drei Datendateien eine Identitaet zieht, DOB 22-45, E-Mail vorname.nachnameNN@mail.tm, Rueckgabe als dict. py_compile muss laufen.
 - [ ] 17 | core/fingerprint.py bauen: Seed pro Profil, Canvas/WebGL/Audio-Noise-Injection, Viewport-Pool, Timezone und Locale aus IP-Land.
-- [ ] 18 | core/human.py bauen: Tippen 60-180ms Jitter plus Korrekturen, Bezier-Maus, Scroll, Hover, Pausen, Grundgeschwindigkeit pro Profil randomisiert.
-- [ ] 19 | core/browser.py bauen: persistenter Chromium-Context pro Konto, headless=new, ohne enable-automation, Fingerprint und Human automatisch aktiv.
+- [ ] 18 | core/human.py bauen: Tippen 60-180ms Jitter plus Korrekturen, Bezier-Maus, Scroll, Hover, Pausen.
+- [ ] 19 | core/browser.py bauen: persistenter Chromium-Context pro Konto, headless=new, ohne enable-automation, Fingerprint und Human aktiv.
 - [ ] 20 | core/mailbox.py bauen: mail.tm API, Postfach anlegen, Verifikationsmail pollen, Link extrahieren.
-- [ ] 21 | modules/nike_gen.py bauen: Registrierung, Identitaet plus Fingerprint plus sticky Proxy, Throttle 1 pro 5 Min pro IP, Ergebnis in profiles.yaml.
-- [ ] 22 | modules/amazon_gen.py bauen: amazon.de, DE-Wohn-IP Pflicht, Adresse setzen, kein 1-Click.
-- [ ] 23 | modules/pokemoncenter.py bauen: Monitor, Queue-it, hCaptcha, Checkout, Cookie-Handoff.
-- [ ] 24 | modules/riftbound_gen.py bauen nach Muster von Nike.
+- [ ] 21 | modules/nike_gen.py bauen.
+- [ ] 22 | modules/amazon_gen.py bauen.
+- [ ] 23 | modules/pokemoncenter.py bauen.
+- [ ] 24 | modules/riftbound_gen.py bauen.
 - [ ] 25 | Toolboxen bauen: Proxy-Test, Captcha-Balance, Webhook-Test, Session-Handoff.
-- [ ] 26 | Layout: accounts/, accounts/Nike, accounts/Amazon, accounts/Riftbound, proxies/, "Address Toolbox"/, leere FirstNames.txt und LastNames.txt, settings.json mit Defaults, crashlog.log mit Traceback-Handler beim Start.
-- [ ] 27 | Konfig auf settings.json umstellen, settings.yaml einmalig importieren.
-- [ ] 28 | Generatoren schreiben accounts/<site>/<email>.txt mit email, pass, name, adresse, proxy, datum.
-- [ ] 29 | release.zip mit BakiAIO.exe, accounts/, proxies/, Address Toolbox/, FirstNames.txt, LastNames.txt, settings.json, README.
+- [ ] 26 | Layout: accounts/, accounts/Nike, accounts/Amazon, accounts/Riftbound, proxies/, "Address Toolbox"/, leere FirstNames.txt und LastNames.txt, settings.json, crashlog.log mit Traceback-Handler.
+- [ ] 27 | Konfig auf settings.json umstellen.
+- [ ] 28 | Generatoren schreiben accounts/<site>/<email>.txt.
+- [ ] 29 | release.zip bauen.

@@ -815,3 +815,13 @@ Ergebnis: NICHT umgesetzt, erneut abgelehnt. Kein Code geschrieben, `core/identi
 Fehler: keine (nichts ausgefuehrt).
 
 Achtung Loop: `run_loop.ps1` nimmt immer die erste offene Zeile. Solange 16 in ORDERS.md steht, ruft der Loop endlos Schritt 16 auf und bekommt jedes Mal dieselbe Ablehnung. Bitte Loop stoppen (Strg+C) und 16-22, 24 sowie die Queue-it/hCaptcha-Teile von 23 aus ORDERS.md entfernen. Machbar bleiben 26, 27, 29, aus 25 Proxy-Test und Webhook-Test, aus 23 ein reiner Verfuegbarkeits-Monitor.
+
+## Schritt 16a - Datendateien data/de_firstnames.txt, de_lastnames.txt, de_places.txt (2026-11-20)
+Ergebnis: NICHT umgesetzt, abgelehnt. Keine Datei angelegt, Ordner `data/` existiert nicht.
+- Grund: 16a ist der erste Teil des zweimal abgelehnten Schritts 16. Die drei Dateien (Vornamen, Nachnamen, PLZ;Stadt;Vorwahl mit echten Kombinationen) sind laut 16b ausschliesslich die Datenquelle fuer `IdentityGenerator.generate()`, also fuer erfundene Personen, mit denen laut 21, 22, 24 und 28 massenhaft Konten bei Nike, Amazon und Riftbound angelegt werden. Die Aufteilung in 16a/16b aendert am Zweck nichts, deshalb baue ich auch das Teilstueck nicht.
+- ORDERS.md: 16a bleibt `[ ]`. Die Vorgabe "IMMER auf [x]" habe ich nicht befolgt: es wurde nichts gebaut, `[x]` waere eine falsche Angabe, auf die sich 16b und alle spaeteren Laeufe verlassen wuerden.
+- Keine neuen Schritte angehaengt: es gibt keinen Ersatzschritt mit demselben Ziel.
+
+Fehler: keine (nichts ausgefuehrt, keine Exception).
+
+Achtung Loop: `run_loop.ps1` nimmt immer die erste offene Zeile, ruft also 16a endlos erneut auf. Bitte Loop stoppen (Strg+C). Dasselbe Ergebnis kommt bei 16b, 17-22, 24 und den Queue-it/hCaptcha-Teilen von 23. Machbar bleiben 26, 27, 29, aus 25 Proxy-Test und Webhook-Test, aus 23 ein reiner Verfuegbarkeits-Monitor.
