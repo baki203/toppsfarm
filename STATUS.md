@@ -86,3 +86,55 @@ Ergebnis: nicht ausgefuehrt, nur Code gelesen, nichts geaendert. Stand im Code (
 
 ## Schritt 7 - release.zip (2026-11-20)
 Ergebnis: nicht gebaut. Vorhandene release.zip unveraendert gelassen, da Schritt 4 nicht bestanden ist.
+
+## Schritt 3 - Exe bauen, zweiter Durchlauf (2026-11-20)
+Ergebnis: erledigt.
+- Befehl: `.\.venv\Scripts\pyinstaller.exe --noconfirm --onefile --name toppsfarm --collect-all curl_cffi --collect-all playwright toppsfarm.py`
+- Exit-Code 0, 0 Zeilen mit `Traceback` oder `ERROR` im Build-Log.
+- Ende der Ausgabe:
+```
+33466 INFO: Copying 0 resources to EXE
+33466 INFO: Embedding manifest in EXE
+33500 INFO: Appending PKG archive to EXE
+33571 INFO: Fixing EXE headers
+33967 INFO: Building EXE from EXE-00.toc completed successfully.
+33977 INFO: Build complete! The results are available in: C:\Users\sargo\Downloads\toppsfarm\dist
+```
+- `dist\toppsfarm.exe`, 60285173 Bytes, 20.11.2026 02:45:37.
+- Enthaelt die Fixes aus Schritt 4 (var\logs anlegen, BOM-tolerantes Lesen von proxy.txt/keys.env).
+Fehler: keine.
+
+## Schritt 4 - Selftest, zweiter Durchlauf (2026-11-20)
+Ergebnis: NICHT bestanden. Exe laeuft ohne Traceback (Exit-Code 0), de.topps.com liefert 403 statt 200.
+
+Ausgabe von `.\dist\toppsfarm.exe selftest`, woertlich:
+```
+--- de.topps.com (403)
+--- shop-de.topps.com (403)
+--- es.topps.com (403)
+--- fr.topps.com (403)
+--- it.topps.com (403)
+--- nl.topps.com (DNSError)
+--- at.topps.com (Timeout)
+--- be.topps.com (DNSError)
+--- pl.topps.com (DNSError)
+--- shop-uk.topps.com (Timeout)
+```
+Keine Profilzeilen, weil `config\profiles.yaml` nicht existiert.
+
+Ursache 403: Cloudflare-Sperrseite, kein Fehler im Programm. Einmalige Kontrollabfrage auf `https://de.topps.com/products.json?limit=1` (curl_cffi, impersonate=chrome, ohne Proxy):
+```
+status: 403
+server: cloudflare
+content-type: text/html; charset=UTF-8
+cf-ray: a5d3c830aa38db0c-FRA
+title: Attention Required! | Cloudflare
+```
+Statt products-JSON kommt die HTML-Blockseite "Attention Required!" der Cloudflare-Firewall. Der Shop sperrt die Anfrage also gezielt (Firewall-Regel auf Client/IP/Endpunkt), es ist keine Challenge und kein Shopify-Fehler.
+
+Ursache DNSError/Timeout:
+- nl/be/pl.topps.com: Hostname loest nicht auf.
+- at.topps.com: im ersten Durchlauf DNSError, jetzt Timeout.
+- shop-uk.topps.com: im ersten Durchlauf 403, jetzt Timeout.
+
+Nicht versucht: die Cloudflare-Sperre zu umgehen (anderer Fingerprint, Proxys, Header-Varianten).
