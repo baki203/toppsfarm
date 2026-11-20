@@ -1,22 +1,26 @@
 #!/usr/bin/env python3
 """Amazon AIO - alle Skyridge-Module fuer 21 Amazon-Domains.
 
-Untermenue (7 Punkte):
-  1 Account Generator   - erstellt Konten (non-PVA, Catch-All-OTP)
-  2 Account Reset       - Passwort-Reset fuer bestehende Konten
-  3 Invites             - Invite auf Produktseite anfragen (Skyridge-Log)
-  4 Invite Checker      - prueft, ob Konten ein Invite gewonnen haben
-  5 Farmer              - farmt Aktivitaet (Warenkorb/Merkliste)
-  6 Session Manager     - Cookies je Konto speichern, Browser einloggen
-  7 ACO (Auto Checkout) - Checkout per Produkt-ID + Lieferort/Locker + Karte/iDEAL
+Modul-Uebersicht (Skyridge-Muster):
+  1 Account Generator   - erstellt Konten (HTTP, non-PVA, Catch-All-OTP)
+  2 Account Reset       - Passwort-Reset (HTTP, forgotpassword + OTP-Mail)
+  3 Invites             - Invite auf Produktseite anfragen (HTTP)
+  4 Invite Checker      - prueft, ob Konten ein Invite gewonnen haben (HTTP)
+  5 Farmer              - farmt Aktivitaet: Warenkorb + Merkliste (HTTP)
+  6 Session Manager     - Browser-basiert: Cookies je Konto speichern + einloggen
+  7 ACO (Auto Checkout) - Checkout per Produkt-ID + Dummy-Items, PLZ/Locker,
+                          Kreditkarte oder iDEAL (BankQ/Revolut) (HTTP)
 
-Gemeinsame Basis: modules/Engine/Amazon/amazon_core.py (Domains, Logger,
-Statusleiste, SessionStore, AmazonClient).
+Nur der Session Manager ist browser-basiert (wie Skyridge); alle anderen Module
+laufen ueber den HTTP-AmazonClient mit wiederhergestellten Cookies aus dem
+SessionStore (restore_or_login).
+
+Gemeinsame Basis: modules/Engine/Amazon/amazon_core.py (Domains, SkyLogger,
+StatusBar, SessionStore, AmazonClient, AmazonBrowser).
 """
 from __future__ import annotations
 
 import asyncio
-import os
 import sys
 from pathlib import Path
 
@@ -25,14 +29,15 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from modules.Engine.Amazon.amazon_core import (  # noqa: E402
-    AmazonClient, DOMAINS, SessionStore, SkyLogger, StatusBar, domain_for,
-    load_accounts, paint,
+    AmazonClient, AmazonBrowser, DOMAINS, SessionStore, SkyLogger, StatusBar,
+    domain_for, load_accounts, paint,
 )
 
 
 class AmazonAIOModule:
-    """Untermenue mit 7 Punkten. Jeder Punkt fuehrt eine Feature-Funktion aus,
-    die im Skyridge-Muster ueber SkyLogger + StatusBar laeuft."""
+    """Untermenue mit 7 Punkten + ADDRESS + Selftest. Jeder Punkt fuehrt eine
+    Feature-Funktion aus, die im Skyridge-Muster ueber SkyLogger + StatusBar
+    laeuft. Modul-eigener Statusbalken (Kopfzeile) je Durchlauf."""
 
     title = "Amazon AIO"
 
@@ -79,7 +84,7 @@ class AmazonAIOModule:
             except Exception as exc:
                 print(f" Fehler: {type(exc).__name__}: {exc}")
 
-    # ------------------------------------------------------------- Feature-Logik
+    # ------------------------------------------------------------- Hilfsfunktionen
     def _log(self, cc: str) -> SkyLogger:
         return SkyLogger(site=f"Amazon{cc.upper()}")
 
@@ -88,22 +93,44 @@ class AmazonAIOModule:
         return AmazonClient(cc, email=email, log=log, store=SessionStore("amazon"),
                             proxy=proxy)
 
-    async def _acquire_proxy(self, site: str) -> str | None:
+    async def _acquire_proxy(self, site: str = "amazon") -> str | None:
         """Liefert einen lebenden Proxy (1 Lauf = 1 Proxy, round-robin)."""
-        from modules.Engine.Shopify.shopify_core import ProxyPool, State
-        from modules.Engine.Shopify.shopify_core import Settings
+        from modules.Engine.Shopify.shopify_core import ProxyPool, Settings, State
         cfg = Settings.load()
         pool = ProxyPool(State(str(cfg.path(cfg.state_db))), site)
         return await pool.acquire()
 
+    async def _for_accounts(self, cc: str, label: str) -> list[dict]:
+        """Konten laden; falls leer interaktiv ein Konto abfragen."""
+        accounts = load_accounts("amazon")
+        if accounts:
+            return accounts
+        email = input(f"  {label}: Email: ").strip()
+        pwd = input(f"  {label}: Passwort: ").strip()
+        if email and pwd:
+            return [{"email": email, "password": pwd}]
+        return []
+
+    async def _restore_client(self, c: AmazonClient, pwd: str) -> bool:
+        """Stellt die Session wieder her (Cookies aus SessionStore) oder loggt
+        ein. Liefert True, wenn die Session aktiv ist."""
+        if await c.restore():
+            return True
+        if pwd and await c.signin(pwd):
+            await c.save()
+            return True
+        return False
+
+    # ---------------------------------------------------------- 1 Account Generator
     async def generate(self, cc: str) -> None:
-        """1 Account Generator: erstellt Konten non-PVA, OTP per Catch-All-Mail."""
+        """1 Account Generator: erstellt Konten (HTTP, non-PVA, Catch-All-OTP)."""
         log = self._log(cc)
         bar = StatusBar(log)
-        proxy = await self._acquire_proxy("amazon")
+        bar.header(f"Amazon{cc.upper()} Account Generator")
+        proxy = await self._acquire_proxy()
         if proxy:
             from utilities.proxy import mask_proxy
-            log.line("Proxy", "", "", mask_proxy(proxy), "info")
+            log.line("Gen", "", "", mask_proxy(proxy), "dim")
         try:
             n = int(input("  Anzahl Konten [1]: ").strip() or "1")
         except ValueError:
@@ -116,8 +143,7 @@ class AmazonAIOModule:
             acc = await self._gen_one(cc, log, proxy)
             if acc:
                 log.status("created")
-                log.line("Gen", "", acc["email"], "Konto erstellt", "ok")
-                # Artifact: Erfolg zaehlt nur mit Datei unter accounts/Amazon/
+                log.line("Gen", "", acc["email"], "Account created", "ok")
                 d = ROOT / "accounts" / "Amazon"
                 d.mkdir(parents=True, exist_ok=True)
                 f = d / f"{acc['email']}.txt"
@@ -129,71 +155,50 @@ class AmazonAIOModule:
                     encoding="utf-8")
             else:
                 log.status("error")
-                log.line("Gen", "", "", "Konto fehlgeschlagen", "err")
+                log.line("Gen", "", "", "Account generation failed", "err")
             bar.render()
         print()
 
     async def _gen_one(self, cc: str, log: SkyLogger, proxy: str | None = None) -> dict | None:
-        """Einzelnes Konto: Identitaet + Catch-All-Mail + Browser-Registrierung."""
+        """Einzelnes Konto: Identitaet + Catch-All-Mail + HTTP-Registrierung."""
         from utilities.mailbox import create_inbox, wait_for_link
-        from modules.Engine.Shopify.shopify_core import Settings
-        from utilities.browser import Browser
-        from utilities.human import Human
         from utilities.identity import IdentityGenerator
 
-        cfg = Settings.load()
         ident = IdentityGenerator().generate()
-        inbox = await create_inbox(cfg)
+        inbox = await create_inbox()
         if not inbox or not inbox.get("address"):
             return None
-        browser = Browser(user_data_dir=str(ROOT / "var" / f"browser-amazon-{cc}"),
-                          headless=True,
-                          seed=ident.seed if hasattr(ident, "seed") else None,
-                          proxy=proxy)
-        await browser.start()
-        human = Human()
-        try:
-            page = await browser.new_page()
-            await page.goto(f"https://{domain_for(cc)}/ap/register",
-                            wait_until="domcontentloaded", timeout=45000)
-            await human.move_mouse(page)
-            fields = {
-                "input[name='customerName']": f"{ident.first_name} {ident.last_name}",
-                "input[name='email']": inbox["address"],
-                "input[name='password']": ident.password,
-                "input[name='passwordCheck']": ident.password,
-            }
-            for sel, val in fields.items():
-                try:
-                    loc = page.locator(sel).first
-                    if await loc.count():
-                        await human.type_text(page, sel, val)
-                except Exception:
-                    pass
-            for btn in ('button[type="submit"]', 'input[type="submit"]',
-                        'button:has-text("Verifizieren")', 'button:has-text("Weiter")'):
-                try:
-                    loc = page.locator(btn).first
-                    if await loc.count():
-                        await loc.click(timeout=5000)
-                        break
-                except Exception:
-                    pass
+        async with self._client(cc, email=inbox["address"], log=log, proxy=proxy) as c:
             try:
-                link = await wait_for_link(inbox, timeout=45.0)
-            except Exception:
-                link = None
-            return {"site": cc, "email": inbox["address"],
+                r = await c.s.get(c.url("/ap/register"), timeout=30)
+                if r.status_code != 200:
+                    return None
+                data = {
+                    "customerName": ident.full_name,
+                    "email": inbox["address"],
                     "password": ident.password,
-                    "first_name": ident.first_name, "last_name": ident.last_name,
-                    "verify_link": link or ""}
-        finally:
-            await browser.stop()
+                    "passwordCheck": ident.password,
+                    "create": "0", "action": "register",
+                }
+                r = await c.s.post(c.url("/ap/register"), data=data, timeout=30)
+                link = None
+                try:
+                    link = await wait_for_link(inbox, timeout=45.0)
+                except Exception:
+                    link = None
+                return {"site": cc, "email": inbox["address"],
+                        "password": ident.password,
+                        "first_name": ident.first_name, "last_name": ident.last_name,
+                        "verify_link": link or ""}
+            except Exception:
+                return None
 
+    # ---------------------------------------------------------- 2 Account Reset
     async def reset(self, cc: str) -> None:
         """2 Account Reset: Passwort-Reset per 'Passwort vergessen' + OTP-Mail."""
         log = self._log(cc)
         bar = StatusBar(log)
+        bar.header(f"Amazon{cc.upper()} Account Reset")
         accounts = load_accounts("amazon")
         if not accounts:
             print("  keine Konten unter accounts/Amazon gefunden.")
@@ -209,11 +214,11 @@ class AmazonAIOModule:
             email = acc.get("email") or acc.get("EMAIL")
             if not email:
                 continue
-            log.line("Reset", "", email, "Passwort-Reset anstossen ...", "info")
+            log.line("Reset", "", email, "Sending password reset ...", "info")
             ok = await self._reset_one(cc, email, new_pass, log,
-                                       proxy=await self._acquire_proxy("amazon"))
+                                       proxy=await self._acquire_proxy())
             log.status("ok" if ok else "error")
-            log.line("Reset", "", email, "Reset gesendet" if ok else "Reset fehlgeschlagen",
+            log.line("Reset", "", email, "Reset sent" if ok else "Reset failed",
                      "ok" if ok else "err")
             bar.render()
         print()
@@ -222,9 +227,7 @@ class AmazonAIOModule:
                          log: SkyLogger, proxy: str | None = None) -> bool:
         """Sendet Passwort-Reset-Link (forgotpassword) an die Mailbox."""
         from utilities.mailbox import create_inbox, wait_for_link
-        from modules.Engine.Shopify.shopify_core import Settings
-        cfg = Settings.load()
-        inbox = await create_inbox(cfg)
+        inbox = await create_inbox()
         if not inbox or not inbox.get("address"):
             return False
         async with self._client(cc, email=email, log=log, proxy=proxy) as c:
@@ -244,31 +247,20 @@ class AmazonAIOModule:
                 data.update(vals)
                 data.setdefault("action", "recover")
                 r = await c.s.post(c.url("/ap/forgotpassword"), data=data)
-                # OTP/Link aus der Catch-All-Mailbox lesen
-                link = None
                 try:
                     link = await wait_for_link(inbox, timeout=45.0)
                 except Exception:
-                    pass
+                    link = None
                 return r.status_code == 200
             except Exception:
                 return False
 
-    async def _for_accounts(self, cc: str, label: str) -> list[dict]:
-        """Konten laden; falls leer interaktiv ein Konto abfragen."""
-        accounts = load_accounts("amazon")
-        if accounts:
-            return accounts
-        email = input(f"  {label}: Email: ").strip()
-        pwd = input(f"  {label}: Passwort: ").strip()
-        if email and pwd:
-            return [{"email": email, "password": pwd}]
-        return []
-
+    # ---------------------------------------------------------- 3 Invites
     async def invites(self, cc: str) -> None:
-        """3 Invites: Invite auf Produktseite anfragen, Skyridge-Log + Statusbar."""
+        """3 Invites: Invite auf Produktseite anfragen. Skyridge-Log + Statusbar."""
         log = self._log(cc)
         bar = StatusBar(log)
+        bar.header(f"Amazon{cc.upper()} Invites")
         asin = input("  ASIN: ").strip().upper()
         if not asin:
             return
@@ -279,37 +271,71 @@ class AmazonAIOModule:
         for acc in accounts:
             email = acc.get("email")
             pwd = acc.get("password")
-            log.line("Invite", asin, email, "Loading product page (attempt 1/3) ...", "info")
-            ok, msg = await self._request_invite(cc, asin, email, pwd, log)
-            key = "requested" if ok else "already"
-            log.status(key if ok else "error")
-            log.line("Invite", asin, email, msg, "ok" if ok else "dim")
-            bar.render()
+            async with self._client(cc, email=email, log=log,
+                                    proxy=await self._acquire_proxy()) as c:
+                # Session-Restore (nur loggen, wenn aktiv)
+                if await c.restore():
+                    log.line("Invite", asin, email, "Session restored!", "dim")
+                    log.status("restored")
+                elif not pwd or not await c.signin(pwd):
+                    log.line("Invite", asin, email, "Login failed", "err")
+                    log.status("error")
+                    bar.render()
+                    continue
+                # Produktseite mit Retry (attempt x/3)
+                ok, msg = await self._invite_flow(c, cc, asin, email, log)
+                if ok:
+                    log.status("requested")
+                    log.line("Invite", asin, email, msg, "ok")
+                else:
+                    log.status("already")
+                    log.line("Invite", asin, email, msg, "dim")
+                bar.render()
         print()
 
-    async def _request_invite(self, cc: str, asin: str, email: str, pwd: str,
-                              log: SkyLogger) -> tuple[bool, str]:
-        """Invite-Request: Login -> Produktseite -> Registrieren (behauptet:
-        Endpunkte variieren je Domain; Grundgeruest funktioniert per Session)."""
-        async with self._client(cc, email=email, log=log) as c:
-            if await c.restore():
-                log.line("Invite", asin, email, "Session restored!", "dim")
-            else:
-                if not pwd or not await c.signin(pwd):
-                    return False, "Login fehlgeschlagen"
-                log.line("Invite", asin, email, "Login ok", "dim")
-            try:
-                r = await c.s.get(c.url(f"/dp/{asin}"), timeout=30)
-                if r.status_code != 200:
-                    return False, f"Produktseite {r.status_code}"
-                return True, "Invite requested!"
-            except Exception:
-                return False, "Netzwerkfehler"
+    async def _invite_flow(self, c: AmazonClient, cc: str, asin: str, email: str,
+                           log: SkyLogger) -> tuple[bool, str]:
+        """Invite-Request: Produktseite laden (attempt x/3) -> Details -> Request."""
+        import re as _re
+        attempts = 3
+        for attempt in range(1, attempts + 1):
+            log.line("Invite", asin, email, f"Loading product page (attempt {attempt}/{attempts}) ...", "info")
+            det = await c.fetch_invite_details(asin)
+            if det:
+                info = f" - {det.get('title','')}" if det.get("title") else ""
+                price = f" | Price: {det['price']}" if det.get("price") else ""
+                iid = f" | ID: {det['invite_id']}" if det.get("invite_id") else ""
+                log.line("Invite", asin, email,
+                         f"Fetched invite details{info}{price}{iid}", "mag")
+                break
+            if attempt < attempts:
+                await asyncio.sleep(1.0)
+        # Checking product availability
+        log.line("Invite", asin, email, "Checking product availability ...", "info")
+        if det is None:
+            return False, "Product page failed"
+        # Already requested / entered
+        low = (det.get("title", "") + " ").lower()
+        if det.get("invite_id"):
+            log.line("Invite", asin, email, "Already requested", "dim")
+            return False, "Already requested, skipping"
+        if "bereits" in low or "already" in low:
+            return False, "Already entered, skipping"
+        # Requesting invite
+        log.line("Invite", asin, email, "Requesting invite ...", "info")
+        state = await c.request_invite(asin)
+        if state == "requested":
+            return True, "Invite requested!"
+        if state == "already":
+            return False, "Already requested, skipping"
+        return False, "Invite request failed"
 
+    # ---------------------------------------------------------- 4 Invite Checker
     async def invite_checker(self, cc: str) -> None:
         """4 Invite Checker: prueft, ob Konten ein Invite gewonnen haben."""
         log = self._log(cc)
         bar = StatusBar(log)
+        bar.header(f"Amazon{cc.upper()} Invite Checker")
         asin = input("  ASIN: ").strip().upper()
         accounts = await self._for_accounts(cc, "Check")
         if not accounts:
@@ -317,30 +343,27 @@ class AmazonAIOModule:
         for acc in accounts:
             email = acc.get("email")
             pwd = acc.get("password")
-            log.line("Check", asin, email, "Pruefe Invite-Status ...", "info")
-            won = await self._check_invite(cc, asin, email, pwd)
-            log.status("won" if won else "lost")
-            log.line("Check", asin, email, "Invite gewonnen!" if won else "Kein Gewinn",
-                     "ok" if won else "dim")
-            bar.render()
+            async with self._client(cc, email=email, log=log,
+                                    proxy=await self._acquire_proxy()) as c:
+                if not await self._restore_client(c, pwd):
+                    log.line("Check", asin, email, "Login failed", "err")
+                    log.status("error")
+                    bar.render()
+                    continue
+                log.line("Check", asin, email, "Checking invite status ...", "info")
+                won = await c.check_invite(asin)
+                log.status("won" if won else "lost")
+                log.line("Check", asin, email,
+                         "Invite won!" if won else "No win", "ok" if won else "dim")
+                bar.render()
         print()
 
-    async def _check_invite(self, cc: str, asin: str, email: str, pwd: str) -> bool:
-        async with self._client(cc, email=email) as c:
-            if not await c.restore():
-                if not pwd or not await c.signin(pwd):
-                    return False
-            try:
-                r = await c.s.get(c.url("/gp/most-wished-for/list/ref=gw_iph"), timeout=30)
-                body = r.text.lower()
-                return r.status_code == 200 and asin.lower() in body
-            except Exception:
-                return False
-
+    # ---------------------------------------------------------- 5 Farmer
     async def farmer(self, cc: str) -> None:
-        """5 Farmer: farmt Aktivitaet (Produkt in Warenkorb + Merkliste)."""
+        """5 Farmer: farmt Aktivitaet (Warenkorb + Merkliste)."""
         log = self._log(cc)
         bar = StatusBar(log)
+        bar.header(f"Amazon{cc.upper()} Farmer")
         asin = input("  ASIN: ").strip().upper()
         accounts = await self._for_accounts(cc, "Farmer")
         if not accounts:
@@ -348,104 +371,109 @@ class AmazonAIOModule:
         for acc in accounts:
             email = acc.get("email")
             pwd = acc.get("password")
-            log.line("Farmer", asin, email, "Add to cart + wishlist ...", "info")
-            ok = await self._farm_one(cc, asin, email, pwd,
-                                      proxy=await self._acquire_proxy("amazon"))
-            log.status("ok" if ok else "error")
-            log.line("Farmer", asin, email, "Aktivitaet erhoht" if ok else "Fehler",
-                     "ok" if ok else "err")
-            bar.render()
-        print()
-
-    async def _farm_one(self, cc: str, asin: str, email: str, pwd: str,
-                    proxy: str | None = None) -> bool:
-        async with self._client(cc, email=email, proxy=proxy) as c:
-            if not await c.restore():
-                if not pwd or not await c.signin(pwd):
-                    return False
-            try:
-                r1 = await c.s.get(c.url(f"/dp/{asin}"), timeout=30)
-                if r1.status_code != 200:
-                    return False
-                # Merkliste + Warenkorb (vereinfacht; Anti-Bot kann blocken)
-                await c.s.get(c.url("/gp/aws/c/add-to-wishlist"), timeout=20)
-                await c.s.post(c.url("/gp/aws/cart/"), json={"asin": asin,
-                                                             "quantity": 1})
-                return True
-            except Exception:
-                return False
-
-    async def session(self, cc: str) -> None:
-        """6 Session Manager: Cookies je Konto speichern + Browser einloggen."""
-        log = self._log(cc)
-        bar = StatusBar(log)
-        accounts = await self._for_accounts(cc, "Session")
-        if not accounts:
-            return
-        for acc in accounts:
-            email = acc.get("email")
-            pwd = acc.get("password")
-            log.line("Session", "", email, "Restoring session ...", "info")
-            async with self._client(cc, email=email, log=log) as c:
-                ok = await c.restore()
-                if not ok and pwd:
-                    ok = await c.signin(pwd)
-                if ok:
-                    await c.save()
-                log.status("ok" if ok else "error")
-                log.line("Session", "", email,
-                         "Session restored!" if ok else "Login fehlgeschlagen",
+            async with self._client(cc, email=email, log=log,
+                                    proxy=await self._acquire_proxy()) as c:
+                if not await self._restore_client(c, pwd):
+                    log.line("Farmer", asin, email, "Login failed", "err")
+                    log.status("error")
+                    bar.render()
+                    continue
+                log.line("Farmer", asin, email, "Adding to cart + wishlist ...", "info")
+                cart = await c.add_to_cart(asin)
+                wish = await c.add_wishlist(asin)
+                ok = cart or wish
+                log.status("added" if ok else "error")
+                log.line("Farmer", asin, email,
+                         f"Activity: cart={cart} wishlist={wish}" if ok else "Activity failed",
                          "ok" if ok else "err")
                 bar.render()
         print()
 
-    async def aco(self, cc: str) -> None:
-        """7 ACO: Auto-Checkout per Produkt-ID + Lieferort/Locker + Karte/iDEAL."""
+    # ---------------------------------------------------------- 6 Session Manager
+    async def session(self, cc: str) -> None:
+        """6 Session Manager (BROWSER-basiert, wie Skyridge):
+        Cookies je Konto im persistente Browserprofil speichern und den Browser
+        eingeloggt oeffnen, damit man manuell navigieren/kaufen kann."""
         log = self._log(cc)
         bar = StatusBar(log)
+        bar.header(f"Amazon{cc.upper()} Session Manager")
+        accounts = await self._for_accounts(cc, "Session")
+        if not accounts:
+            return
+        keep_open = (input("  Browser offen lassen nach Login? (j/n) [j]: ").strip().lower() != "n")
+        for acc in accounts:
+            email = acc.get("email")
+            pwd = acc.get("password")
+            log.line("Session", "", email, "Restoring session ...", "info")
+            async with AmazonBrowser(cc, email=email, password=pwd,
+                                     proxy=await self._acquire_proxy(),
+                                     headless=False, log=log) as b:
+                ok = await b.restore_or_login()
+                if ok:
+                    await b.page.goto(f"https://{domain_for(cc)}/",
+                                      wait_until="domcontentloaded", timeout=40000)
+                    log.status("restored")
+                    log.line("Session", "", email, "Session restored!", "ok")
+                    if keep_open:
+                        print(paint(f"    Browser offen fuer {email} - manuell navigieren. "
+                                    "Enter fuer naechstes Konto.", "dim"))
+                        try:
+                            input()
+                        except (EOFError, KeyboardInterrupt):
+                            pass
+                else:
+                    log.status("error")
+                    log.line("Session", "", email, "Session restore failed", "err")
+                bar.render()
+        print()
+
+    # ---------------------------------------------------------- 7 ACO
+    async def aco(self, cc: str) -> None:
+        """7 ACO: Auto-Checkout per Produkt-ID + Dummy-Items, PLZ/Locker,
+        Kreditkarte oder iDEAL (BankQ/Revolut)."""
+        log = self._log(cc)
+        bar = StatusBar(log)
+        bar.header(f"Amazon{cc.upper()} ACO")
         pid = input("  Produkt-ID (ASIN): ").strip().upper()
         if not pid:
             return
         accounts = await self._for_accounts(cc, "ACO")
         if not accounts:
             return
-        ship = input("  PLZ [z.B. 10115]: ").strip()
+        ship = input("  PLZ (oder Locker-Kuerzel) [10115]: ").strip()
+        dummy = []
+        extra = input("  Zusaetzliche Dummy-Item-IDs (Komma getrennt, leer=keine): ").strip()
+        if extra:
+            dummy = [x.strip().upper() for x in extra.split(",") if x.strip()]
+        pm = input("  Zahlungsmethode (card=Kreditkarte / ideal=iDEAL-BankQ-Revolut) [card]: ").strip().lower()
+        if pm not in ("card", "ideal"):
+            pm = "card"
         for acc in accounts:
             email = acc.get("email")
             pwd = acc.get("password")
-            log.line("ACO", pid, email, "Starte Checkout ...", "info")
-            ok = await self._aco_one(cc, pid, email, pwd, ship,
-                                     proxy=await self._acquire_proxy("amazon"))
-            log.status("ok" if ok else "error")
-            log.line("ACO", pid, email,
-                     "Checkout-Link erzeugt" if ok else "Checkout fehlgeschlagen",
-                     "ok" if ok else "err")
-            bar.render()
+            async with self._client(cc, email=email, log=log,
+                                    proxy=await self._acquire_proxy()) as c:
+                if not await self._restore_client(c, pwd):
+                    log.line("ACO", pid, email, "Login failed", "err")
+                    log.status("error")
+                    bar.render()
+                    continue
+                log.line("ACO", pid, email, f"Checkout ({pm}) mit PLZ/Locker {ship or '-'} ...", "info")
+                ok = await c.checkout(pid, plz=ship, dummy=dummy, payment=pm)
+                log.status("ok" if ok else "error")
+                log.line("ACO", pid, email,
+                         "Checkout prepared" if ok else "Checkout failed",
+                         "ok" if ok else "err")
+                bar.render()
         print()
 
-    async def _aco_one(self, cc: str, pid: str, email: str, pwd: str,
-                   ship: str, proxy: str | None = None) -> bool:
-        async with self._client(cc, email=email, proxy=proxy) as c:
-            if not await c.restore():
-                if not pwd or not await c.signin(pwd):
-                    return False
-            try:
-                if ship:
-                    await c.set_location(ship)
-                r = await c.s.get(c.url(f"/gp/cart/ajax-endpoint/add-to-cart"), params={
-                    "asin": pid, "quantity": 1, "source": "detail"}, timeout=30)
-                ok = r.status_code == 200
-                await c.save()
-                return ok
-            except Exception:
-                return False
-
+    # ---------------------------------------------------------- 8 ADDRESS
     async def address(self, cc: str) -> None:
         """8 ADDRESS-Modus: legt Default-Lieferadresse + Zahlung in einer
-        EIGENEN zweiten Session an, getrennt vom Drop (A7). Karte erst hier,
-        nicht beim Erstellen (Anti-Fraud)."""
+        EIGENEN zweiten Session an (A7). Karte erst hier, nicht beim Erstellen."""
         log = self._log(cc)
         bar = StatusBar(log)
+        bar.header(f"Amazon{cc.upper()} ADDRESS")
         accounts = await self._for_accounts(cc, "ADDRESS")
         if not accounts:
             print("  keine Konten.")
@@ -466,41 +494,42 @@ class AmazonAIOModule:
         for acc in accounts:
             email = acc.get("email")
             pwd = acc.get("password")
-            log.line("Addr", asin, email, "2. Session: Adresse + Zahlung ...", "info")
-            ok = await self._address_one(cc, asin, email, pwd, plz, addr, stadt,
-                                         card, proxy=await self._acquire_proxy("amazon"))
-            log.status("ok" if ok else "error")
-            log.line("Addr", asin, email,
-                     "Adresse+Karte gesetzt" if ok else "Fehler", "ok" if ok else "err")
-            bar.render()
+            async with self._client(cc, email=email, log=log,
+                                    proxy=await self._acquire_proxy()) as c:
+                if not await self._restore_client(c, pwd):
+                    log.line("Addr", asin, email, "Login failed", "err")
+                    log.status("error")
+                    bar.render()
+                    continue
+                log.line("Addr", asin, email, "2. Session: Adresse + Zahlung ...", "info")
+                ok = await self._address_one(c, cc, asin, plz, addr, stadt, card)
+                log.status("ok" if ok else "error")
+                log.line("Addr", asin, email,
+                         "Address+card set" if ok else "Failed", "ok" if ok else "err")
+                bar.render()
         print()
 
-    async def _address_one(self, cc: str, asin: str, email: str, pwd: str,
-                           plz: str, addr: str, stadt: str, card: dict,
-                           proxy: str | None = None) -> bool:
-        async with self._client(cc, email=email, proxy=proxy) as c:
-            if not await c.restore():
-                if not pwd or not await c.signin(pwd):
-                    return False
-            try:
-                if plz:
-                    await c.set_location(plz)
-                if asin:
-                    await c.add_shipping_address(asin, {
-                        "address-line1": addr, "city": stadt, "postal-code": plz,
-                    })
-                if card.get("number"):
-                    await c.add_payment_method(card)
-                await c.save()
-                return True
-            except Exception:
-                return False
+    async def _address_one(self, c: AmazonClient, cc: str, asin: str,
+                           plz: str, addr: str, stadt: str, card: dict) -> bool:
+        try:
+            if plz:
+                await c.set_location(plz)
+            if asin:
+                await c.add_shipping_address(asin, {
+                    "address-line1": addr, "city": stadt, "postal-code": plz,
+                })
+            if card.get("number"):
+                await c.add_payment_method(card)
+            await c.save()
+            return True
+        except Exception:
+            return False
 
+    # ---------------------------------------------------------- 9 Selftest
     async def selftest(self, cc: str = "ALL") -> None:
         """9 Selftest: prueft alle 21 Amazon-Domains ueber je einen Proxy und
         meldet Sperrquote (403/202/404 = blocked). Messwert < 5%."""
-        from modules.Engine.Shopify.shopify_core import Settings
-        from modules.Engine.Shopify.shopify_core import ProxyPool, State
+        from modules.Engine.Shopify.shopify_core import ProxyPool, Settings, State
         from utilities.proxy import mask_proxy
         cfg = Settings.load()
         pool = ProxyPool(State(str(cfg.path(cfg.state_db))), "amazon")

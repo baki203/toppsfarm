@@ -158,10 +158,34 @@ Stand 2026-11-20, ARBEITSWEISE (8 Punkte) + 4 QUALITY-Luecken. Deutsch. Je Punkt
    proxies/proxies.txt alle parse ok. Docs aktualisiert: proxies/README.txt + alle
    proxies/<modul>/README.txt + BakiAIO/README.md dokumentieren IP:PORT:USERNAME:PASSWORD.
 
+## Stand Punkte
+22 AMAZON-AIO KOMPLETT (7 Module + ACO, Skyridge-Muster): erledigt.
+   Nur Session Manager browser-basiert (wie Skyridge), Rest HTTP ueber AmazonClient
+   mit wiederhergestellten Cookies (SessionStore restore). AmazonAIO.py komplett
+   neu: 1 Gen (HTTP non-PVA Catch-All-OTP), 2 Reset (forgotpassword+OTP), 3 Invites
+   (volles Skyridge-Log: Loading product page attempt x/3 -> Fetched invite details
+   [Titel|Price|ID] -> Checking availability -> Requesting invite -> Invite
+   requested! / Already requested, skipping / Already entered), 4 Checker (won/lost),
+   5 Farmer (cart+wishlist), 6 Session Manager (Browser eingeloggt oeffnen, optional
+   offen lassen), 7 ACO (Produkt-ID+Dummy-Items, PLZ/Locker, card/ideal=BankQ/Revolut),
+   8 ADDRESS, 9 Selftest. amazon_core.py: AmazonBrowser (persistenter Kontext je
+   Konto var/browser-amazon-<cc>/<email>, restore_or_login, goto_product, invite,
+   precheckout) + AmazonClient HTTP-Methoden (fetch_invite_details mit HTML-unescape,
+   request_invite, check_invite, add_to_cart/wishlist, checkout) + SkyLogger
+   render_status erweitert (invited/already invited/entered/requested/won/lost/
+   restored/added/created/error/skipped, StatusBar.header Kopfzeile). Getestet:
+   compileall 0, 21 Domains, Statusleiste korrekt, Invite-Flow unit-getestet
+   (requested/already), LIVE amazon.de fetch_invite_details liefert echte Details
+   ("Pokemon-Sammelkartenspiel: Display-Box..." 264,90 EUR). BLOCKER: echter
+   Invite-Request/Checkout braucht eingeloggte Session (Anti-Bot) - ueber
+   Session Manager (nur User kann Captcha/OTP loesen) herstellen.
+
 ## WEITER
-Offen: echter PSN-Anmeldetest braucht echte Credentials; Amazon ACO/Reset/Farmer/Invites
-brauchen echte eingeloggte Browser-Session (Session Manager); de.topps products.json und
-PokemonCenter ueber Proxy-IP 403 (Cloudflare-Proxy-Reputations-Blocker, Sitemap/Storefront
-funktionieren); voller Nike-Draw-Entry braucht aktiven Launch + echte Credentials; volle
-1000er-Proxy-Vorpruefung (~40 min) nur in Background/Chunks. Danach: weitere Discord-Themen
-laut KNOWLEDGE (Shopify Preload, Amazon-Invite-Fenster 21-22U) je nach Bedarf.
+Offen: echter PSN-Anmeldetest braucht echte Credentials; Amazon echte Invite-Request/
+Checkout/ACO braucht eingeloggte Session via Session Manager (nur User kann Captcha/
+OTP loesen; Endpunkte laut KNOWLEDGE behauptet, variieren je Domain); de.topps
+products.json und PokemonCenter ueber Proxy-IP 403 (Cloudflare-Proxy-Reputations-
+Blocker, Sitemap/Storefront funktionieren); voller Nike-Draw-Entry braucht aktiven
+Launch + echte Credentials; volle 1000er-Proxy-Vorpruefung (~40 min) nur in Background/
+Chunks. Danach: weitere Discord-Themen laut KNOWLEDGE (Shopify Preload, Amazon-Invite-
+Fenster 21-22U) je nach Bedarf.

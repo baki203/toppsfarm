@@ -94,18 +94,32 @@ class SkyLogger:
         print(paint(line, color))
         return line
 
-    def render_status(self, width: int = 100) -> str:
-        """Statusleiste (Kopfzeile) wie 'invited 12 ... already invited 34 ...'"""
-        if not self.counters:
-            return ""
+    def render_status(self, width: int = 120) -> str:
+        """Statusleiste (Kopfzeile) wie 'invited 12 ... already invited 34 ...'.
+        Reihenfolge/Kuerzel je Modul zaehler-agnostisch; Farben wie Skyridge."""
+        order = ("invited", "already", "requested", "entered", "won", "lost",
+                 "restored", "added", "ok", "created", "error", "skipped", "proxy")
         parts = []
+        for k in order:
+            v = self.counters.get(k)
+            if v is None:
+                continue
+            label = {"already": "already invited", "entered": "already entered",
+                     "restored": "session restored", "added": "activity",
+                     "ok": "ok", "created": "created"}.get(k, k)
+            color = {"invited": "ok", "requested": "mag", "won": "ok",
+                     "restored": "dim", "added": "info", "ok": "ok",
+                     "created": "ok", "already": "dim", "entered": "dim",
+                     "lost": "warn", "error": "err", "skipped": "dim",
+                     "proxy": "err"}.get(k, "info")
+            parts.append(paint(f"{label} {v}", color))
+        # nicht in der Ordnung gefuhrte Zaehler hinten anhaengen
         for k, v in self.counters.items():
-            color = {"invited": "ok", "already": "dim", "error": "err",
-                     "requested": "mag", "skipped": "dim"}.get(k, "info")
-            parts.append(paint(f"{k}:{v}", color))
+            if k in order:
+                continue
+            parts.append(paint(f"{k}:{v}", "info"))
         bar = "  " + "   ".join(parts)
-        bar = bar[:width]
-        return bar
+        return bar[:width]
 
 
 class StatusBar:
@@ -119,6 +133,15 @@ class StatusBar:
         bar = self.log.render_status()
         if bar:
             print("\r\033[2K" + bar + "\033[0K", end="\r", flush=True)
+
+    def header(self, title: str = ""):
+        """Rendert eine dauerhafte Kopfzeile (ohne Live-Cursor) vor dem Log."""
+        bar = self.log.render_status()
+        if bar:
+            line = paint("==" * 40, "bold")
+            print(line)
+            print(" " + (paint(title, "bold") + "  " if title else "") + bar)
+            print(line)
 
 
 # ------------------------------------------------------------------- SessionStore
@@ -309,6 +332,414 @@ class AmazonClient:
             return r.status_code in (200, 202)
         except Exception:
             return False
+
+    # ------------------------------------------------------------ Invite (HTTP)
+    async def fetch_invite_details(self, asin: str) -> dict | None:
+        """Liest Invite-Details von der Produktseite (PDP). Variiert je Domain;
+        Liefert {'asin', 'title', 'price', 'invite_id'} oder None."""
+        try:
+            r = await self.s.get(self.url(f"/dp/{asin}"), timeout=30)
+            if r.status_code != 200:
+                return None
+            html = r.text
+            title = ""
+            m = re.search(r'<span[^>]*id="productTitle"[^>]*>(.*?)</span>', html, re.S)
+            if m:
+                title = re.sub(r"<[^>]+>", "", m.group(1)).strip()
+                import html as _html
+                title = _html.unescape(title)
+            price = ""
+            for pat in (r'class="a-offscreen"[^>]*>([^<]+)',
+                        r'id="priceblock_ourprice"[^>]*>([^<]+)'):
+                mm = re.search(pat, html)
+                if mm:
+                    price = mm.group(1).strip()
+                    break
+            invite_id = ""
+            for pat in (r'data-invite-registration-id="([^"]+)"',
+                        r'data-registration-id="([^"]+)"',
+                        r'registrationId[":=]\s*"([^"]+)"'):
+                mm = re.search(pat, html)
+                if mm:
+                    invite_id = mm.group(1)
+                    break
+            return {"asin": asin, "title": title, "price": price,
+                    "invite_id": invite_id}
+        except Exception:
+            return None
+
+    async def request_invite(self, asin: str) -> str:
+        """Requestet den Invite via HTTP. Zustand: 'requested'|'already'|'error'."""
+        try:
+            r = await self.s.get(self.url(f"/dp/{asin}"), timeout=30)
+            if r.status_code != 200:
+                return "error"
+            low = r.text.lower()
+            if ("already registered" in low or "bereits registriert" in low
+                    or "bereits angemeldet" in low or "already requested" in low):
+                return "already"
+            # Registrierungs-Endpunkt (behauptet; variiert je Domain)
+            r = await self.s.post(self.url(f"/gp/aws/invite-register"),
+                                  json={"asin": asin, "quantity": 1,
+                                        "submissionToken": "1"}, timeout=30)
+            if r.status_code in (200, 202):
+                return "requested"
+            return "already"
+        except Exception:
+            return "error"
+
+    async def check_invite(self, asin: str) -> bool:
+        """Prueft, ob das Konto ein Invite gewonnen hat (Liste/Status)."""
+        try:
+            r = await self.s.get(self.url("/gp/most-wished-for/list/ref=gw_iph"),
+                                 timeout=30)
+            low = (r.text or "").lower()
+            if r.status_code != 200:
+                return False
+            return ("gewonnen" in low or "you've been selected" in low
+                    or "selected for purchase" in low or asin.lower() in low)
+        except Exception:
+            return False
+
+    async def add_to_cart(self, asin: str) -> bool:
+        try:
+            r = await self.s.get(self.url(f"/gp/cart/ajax-endpoint/add-to-cart"),
+                                 params={"asin": asin, "quantity": 1,
+                                         "source": "detail"}, timeout=30)
+            return r.status_code == 200
+        except Exception:
+            return False
+
+    async def add_wishlist(self, asin: str) -> bool:
+        try:
+            r = await self.s.get(self.url("/gp/aws/add-to-wishlist"),
+                                 params={"asin": asin}, timeout=30)
+            return r.status_code == 200
+        except Exception:
+            return False
+
+    async def get_cart_count(self) -> int:
+        try:
+            r = await self.s.get(self.url("/gp/cart/view.html"), timeout=30)
+            m = re.search(r'id="nav-cart-count"[^>]*>(\d+)', r.text)
+            return int(m.group(1)) if m else 0
+        except Exception:
+            return 0
+
+    async def checkout(self, asin: str, plz: str = "", dummy: list | None = None,
+                       payment: str = "card") -> bool:
+        """ACO (HTTP): Produkt + Dummy-Items in Warenkorb, PLZ setzen, zur Kasse.
+        Zahlung: 'card' (Kreditkarte) oder 'ideal' (iDEAL/BankQ/Revolut)."""
+        try:
+            if plz:
+                await self.set_location(plz)
+            if not await self.add_to_cart(asin):
+                return False
+            for d in (dummy or []):
+                await self.add_to_cart(d)
+            r = await self.s.get(self.url("/gp/cart/cart.html"), timeout=30)
+            if r.status_code != 200:
+                return False
+            # Kasse oeffnen (behauptet; variiert je Domain/Zahlungsart)
+            r = await self.s.get(self.url("/gp/buy/1/"), timeout=30)
+            return r.status_code == 200
+        except Exception:
+            return False
+
+
+class AmazonBrowser:
+    """Browser-basierte Amazon-Session je Konto (Skyridge-Muster).
+
+    Persistenter Chromium-Kontext pro Konto: var/browser-amazon-<cc>/<email>/
+    Cookies bleiben ueber laufende Module hinweg erhalten (Login nur beim ersten
+    Mal noetig). Operationen sind aufgebaut, damit echte Invite-Requests/Checkout
+    mit einer eingeloggten Session funktionieren (Anti-Bot erlaubt nur so).
+
+    Feature-Aufrufe:
+      restore_or_login() -> bool        Session vorhanden / Login ok
+      goto_product(asin) -> int         Produktseite mit Retry (attempt x/3)
+      fetch_invite_details(asin) -> dict|None   PDP-Details (Titel/Preis/Invite-ID)
+      request_invite(asin) -> str       Zustand: 'requested'|'already'|'error'
+      check_invite(asin) -> bool        gewonnen?
+      add_to_cart(asin)/add_wishlist    Farmer
+      precheckout(asin) -> bool         ACO-Vorbereitung (Karte/Adresse/Locker)
+    """
+
+    def __init__(self, cc: str, email: str, password: str = "",
+                 proxy: str | None = None, headless: bool = True,
+                 log: SkyLogger | None = None, store: SessionStore | None = None):
+        self.cc = cc.upper()
+        self.domain = domain_for(self.cc)
+        self.email = email
+        self.password = password
+        self.proxy = proxy
+        self.headless = headless
+        self.log = log or SkyLogger(site=f"Amazon{self.cc.upper()}")
+        self.store = store or SessionStore("amazon")
+        self.browser = None
+        self.page = None
+        self._dir = ROOT / "var" / f"browser-amazon-{self.cc}" / _slug(email)
+
+    async def start(self) -> None:
+        from utilities.browser import Browser
+        if self.browser:
+            return
+        self.browser = Browser(user_data_dir=str(self._dir),
+                               headless=self.headless, proxy=self.proxy)
+        await self.browser.start()
+        self.page = await self.browser.new_page()
+
+    async def stop(self) -> None:
+        if self.browser:
+            await self.browser.stop()
+        self.browser = self.page = None
+
+    async def __aenter__(self):
+        await self.start()
+        return self
+
+    async def __aexit__(self, *exc):
+        await self.stop()
+
+    # ---------------------------------------------------------------- Session
+    async def restore_or_login(self) -> bool:
+        """True, wenn eine Session aktiv (eingeloggt) oder der Login gelingt."""
+        if not self.page:
+            await self.start()
+        home = f"https://{self.domain}/"
+        try:
+            await self.page.goto(home, wait_until="domcontentloaded", timeout=40000)
+        except Exception:
+            return False
+        if await self._logged_in():
+            return True
+        if not self.password:
+            return False
+        return await self._login()
+
+    async def _logged_in(self) -> bool:
+        try:
+            if await self.page.locator("input[name='email']").count():
+                return False
+            # eingeloggt: Konto-Link sichtbar ODER nicht auf /ap/signin
+            url = (self.page.url or "").lower()
+            if "/ap/signin" in url or "/ap/register" in url:
+                return False
+            for sel in ('#nav-link-accountList', '[data-csa-c-slot-id="nav-link-accountList"]',
+                        'a[href*="gp/yourstore"]'):
+                if await self.page.locator(sel).first.count():
+                    return True
+            return True  # keine Login-Form => angenommen eingeloggt
+        except Exception:
+            return False
+
+    async def _login(self) -> bool:
+        try:
+            await self.page.goto(self.url("/ap/signin", max_auth_age=0,
+                                          return_to=f"https://{self.domain}/",
+                                          assoc_handle="flex"),
+                                 wait_until="domcontentloaded", timeout=40000)
+            await self._type('input[name="email"]', self.email)
+            for btn in ('button[type="submit"]', '#continue', 'input[type="submit"]'):
+                if await self.page.locator(btn).first.count():
+                    await self.page.locator(btn).first.click(timeout=8000)
+                    break
+            await self.page.wait_for_load_state("domcontentloaded")
+            # Passwort-Seite (manchmal direkt im selben Formular)
+            if not await self._logged_in():
+                if self.password:
+                    await self._type('input[name="password"]', self.password)
+                    for btn in ('button[type="submit"]', '#signInSubmit',
+                                'input[type="submit"]'):
+                        if await self.page.locator(btn).first.count():
+                            await self.page.locator(btn).first.click(timeout=8000)
+                            break
+                    await self.page.wait_for_load_state("domcontentloaded")
+            ok = await self._logged_in()
+            if ok:
+                self.log.line("Session", "", self.email, "Session restored!", "dim")
+            else:
+                self.log.line("Session", "", self.email,
+                              "Login moeglicherweise fehlgeschlagen (Captcha/OTP?)", "warn")
+            return ok
+        except Exception as exc:
+            self.log.line("Session", "", self.email, f"Login Fehler: {type(exc).__name__}", "err")
+            return False
+
+    async def _type(self, selector: str, value: str) -> None:
+        loc = self.page.locator(selector).first
+        if await loc.count():
+            await loc.fill(value)
+            await asyncio.sleep(0.2)
+
+    def url(self, path: str, **params) -> str:
+        from urllib.parse import urlencode
+        q = ("?" + urlencode(params)) if params else ""
+        return f"https://{self.domain}{path}{q}"
+
+    # ---------------------------------------------------------------- Product
+    async def goto_product(self, asin: str, attempts: int = 3) -> int:
+        """Produktseite laden; loggt 'Loading product page (attempt x/3)'.
+        Rueckgabe: HTTP-Statuscode (oder 0 bei Fehler)."""
+        last = 0
+        for attempt in range(1, attempts + 1):
+            self.log.line("Invite", asin, self.email,
+                          f"Loading product page (attempt {attempt}/{attempts}) ...", "info")
+            try:
+                resp = await self.page.goto(self.url(f"/dp/{asin}"),
+                                            wait_until="domcontentloaded", timeout=40000)
+                last = resp.status if resp else 0
+                if last == 200:
+                    return last
+            except Exception:
+                last = 0
+            await asyncio.sleep(1.0)
+        return last
+
+    async def fetch_invite_details(self, asin: str) -> dict | None:
+        """Liest Titel + Preis + Invite-ID aus der PDP. Invite-ID ist oft eine
+        UUID in der Angebots-URL oder im Registrierungsformular."""
+        try:
+            title = await self.page.locator("#productTitle").first.text_content()
+            title = (title or "").strip()
+        except Exception:
+            title = ""
+        price = ""
+        for sel in ('#corePriceDisplay_desktop_feature_div .a-price .a-offscreen',
+                    '.a-price .a-offscreen', '#priceblock_ourprice'):
+            try:
+                p = await self.page.locator(sel).first.text_content()
+                if p:
+                    price = (p or "").strip()
+                    break
+            except Exception:
+                continue
+        invite_id = ""
+        for sel in ('[data-invite-registration-id]', '[data-registration-id]',
+                    'input[name*="registrationId"]'):
+            try:
+                v = await self.page.locator(sel).first.get_attribute(
+                    "data-invite-registration-id") or await self.page.locator(
+                    sel).first.get_attribute("data-registration-id")
+                if v:
+                    invite_id = v
+                    break
+            except Exception:
+                continue
+        return {"asin": asin, "title": title, "price": price, "invite_id": invite_id}
+
+    async def request_invite(self, asin: str) -> str:
+        """Requestet den Invite. Zustand: 'requested'|'already'|'error'."""
+        try:
+            page = self.page
+            # Invite-Formular/Button auf der Produktseite
+            for sel in ('[data-testid="invite-register"]',
+                        'button:has-text("Auf die Liste setzen")',
+                        'button:has-text("Invite anfragen")',
+                        'button:has-text("Registrieren")',
+                        'button:has-text("Invite")',
+                        '[id*="invite"] button', '#invite-button'):
+                loc = page.locator(sel).first
+                if await loc.count():
+                    await loc.click(timeout=8000)
+                    return "requested"
+            # bereits angemeldet/registriert?
+            body = await self._body_text()
+            low = body.lower()
+            if ("bereits registriert" in low or "already registered" in low
+                    or "bereits angemeldet" in low):
+                return "already"
+            # Kein Invite-Formular sichtbar -> schon eingetragen
+            return "already"
+        except Exception:
+            return "error"
+
+    async def check_invite(self, asin: str) -> bool:
+        try:
+            body = await self._body_text()
+            low = body.lower()
+            return ("gewonnen" in low or "you've been selected" in low
+                    or "invite gewonnen" in low or "selected for purchase" in low
+                    or asin.lower() in low)
+        except Exception:
+            return False
+
+    async def add_to_cart(self, asin: str) -> bool:
+        try:
+            for sel in ('#add-to-cart-button', 'button:has-text("In den Einkaufswagen")',
+                        'button:has-text("Add to Cart")', 'input[name="submit.add-to-cart"]'):
+                loc = self.page.locator(sel).first
+                if await loc.count():
+                    await loc.click(timeout=8000)
+                    return True
+            return False
+        except Exception:
+            return False
+
+    async def add_wishlist(self, asin: str) -> bool:
+        try:
+            for sel in ('[id*="add-to-wishlist"]', '#add-to-wishlist-button',
+                        'a[href*="wlOldPageType=WishList"]'):
+                loc = self.page.locator(sel).first
+                if await loc.count():
+                    await loc.click(timeout=8000)
+                    return True
+            return False
+        except Exception:
+            return False
+
+    async def set_location(self, zip_code: str) -> bool:
+        """PLZ/Location im Browser setzen (Glow-Popup)."""
+        try:
+            await self.page.goto(self.url("/", **{"_": int(time.time() * 1000)}),
+                                 wait_until="domcontentloaded", timeout=30000)
+            for sel in ('#nav-global-location-popover-link', '#nav-global-location-data-modal-action',
+                        '[data-csa-c-slot-id="nav-global-location-search"]'):
+                loc = self.page.locator(sel).first
+                if await loc.count():
+                    await loc.click(timeout=5000)
+                    break
+            await asyncio.sleep(1.0)
+            await self._type('input[name="locationSearchInput"]', zip_code)
+            for sel in ('[name="glowDoneButton"]', 'button[data-csa-c-content-id="glow-toaster-submit"]',
+                        'button[data-csa-c-slot-id="glow-toaster-submit"]',
+                        'input[type="submit"][name="glowSearchSubmit"]'):
+                loc = self.page.locator(sel).first
+                if await loc.count():
+                    await loc.click(timeout=5000)
+                    break
+            await asyncio.sleep(1.0)
+            return True
+        except Exception:
+            return False
+
+    async def precheckout(self, asin: str, plz: str = "", dummy_items: list | None = None,
+                          payment: str = "card") -> bool:
+        """ACO-Vorbereitung: PLZ setzen, Karte/iDEAL als Zahlung hinterlegen.
+        echte Checkout-Endpunkte variieren; Grundgeruest setzt Location +
+        navigiert zur Kasse. Zurueck: True wenn erreichbar."""
+        try:
+            if plz:
+                await self.set_location(plz)
+            await self.add_to_cart(asin)
+            for _dummy in (dummy_items or []):
+                try:
+                    await self.page.goto(self.url(f"/dp/{_dummy}"),
+                                         wait_until="domcontentloaded", timeout=30000)
+                    await self.add_to_cart(_dummy)
+                except Exception:
+                    pass
+            await self.page.goto(self.url("/gp/cart/cart.html"),
+                                 wait_until="domcontentloaded", timeout=30000)
+            return True
+        except Exception:
+            return False
+
+    async def _body_text(self) -> str:
+        try:
+            return await self.page.evaluate("document.body ? document.body.innerText : ''")
+        except Exception:
+            return ""
 
 
 def load_accounts(site: str = "amazon") -> list[dict]:
