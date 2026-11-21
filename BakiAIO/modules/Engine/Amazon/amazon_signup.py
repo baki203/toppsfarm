@@ -10,8 +10,9 @@ import re
 import secrets
 import time
 from datetime import date, datetime
+from html import unescape
 from pathlib import Path
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urljoin
 
 from curl_cffi.requests import AsyncSession
 
@@ -211,21 +212,122 @@ class DailyCounter:
         return d
 
 
-def synth_register_url(cc: str, domain: str) -> str:
-    from modules.Engine.Amazon.amazon_core import DOMAINS, MARKETPLACE_IDS
-    locale = DOMAINS.get(cc.upper(), (domain, "EUR", "en"))[2]
+def synth_register_url(cc: str, domain: str, email: str = "") -> str:
+    handle = f"{cc.lower()}flex"
     q = {
-        "openid.return_to": f"https://{domain}/",
         "openid.mode": "checkid_setup",
-        "openid.assoc_handle": "saflex",
-        "openid.claimed_id": "http://specs.openid.net/auth/2.0/identifier_select",
-        "openid.identity": "http://specs.openid.net/auth/2.0/identifier_select",
         "openid.ns": "http://specs.openid.net/auth/2.0",
-        "marketplaceId": MARKETPLACE_IDS.get(cc.upper(), ""),
-        "language": locale.split("-")[0].lower(),
-        "ref_": "nav_ya_signin",
+        "openid.identity": "http://specs.openid.net/auth/2.0/identifier_select",
+        "openid.claimed_id": "http://specs.openid.net/auth/2.0/identifier_select",
+        "openid.ns.pape": "http://specs.openid.net/extensions/pape/1.0",
+        "showRememberMe": "true",
+        "openid.pape.max_auth_age": "900",
+        "pageId": handle,
+        "prepopulatedLoginId": email,
+        "openid.assoc_handle": handle,
+        "openid.return_to": f"https://{domain}/?ref_=nav_ya_signin",
+        "policy_handle": "Retail-Checkout",
     }
     return f"https://{domain}/ap/register?{urlencode(q)}"
+
+
+def _attr(tag: str, name: str) -> str:
+    m = re.search(rf'\b{re.escape(name)}=["\']([^"\']*)["\']', tag or "", re.I)
+    return unescape(m.group(1)).strip() if m else ""
+
+
+def _forms(html: str) -> list[tuple[str, str]]:
+    return re.findall(r"<form\b([^>]*)>(.*?)</form>", html or "", re.I | re.S)
+
+
+def _form_fields(body: str) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for m in re.finditer(r"<input\b([^>]*)>", body or "", re.I | re.S):
+        tag = m.group(1)
+        name = _attr(tag, "name")
+        if not name or name in out:
+            continue
+        out[name] = _attr(tag, "value")
+    for m in re.finditer(r"<button\b([^>]*)>", body or "", re.I | re.S):
+        tag = m.group(1)
+        name = _attr(tag, "name")
+        if name and name not in out:
+            out[name] = _attr(tag, "value")
+    return out
+
+
+def _find_form(html: str, markers: tuple[str, ...]) -> tuple[str, dict[str, str]]:
+    for attrs, body in _forms(html):
+        low = body.lower()
+        if all(marker.lower() in low for marker in markers):
+            return _attr(attrs, "action"), _form_fields(body)
+    return "", {}
+
+
+def _find_href(html: str, needles: tuple[str, ...]) -> str:
+    for m in re.finditer(r"<a\b([^>]*)>", html or "", re.I | re.S):
+        href = _attr(m.group(1), "href")
+        if href and any(n in href for n in needles):
+            return href
+    return ""
+
+
+def _proxy_http(status: int | None) -> bool:
+    return status in (202, 403, 503)
+
+
+async def _registration_request(s, cc: str, domain: str, email: str,
+                                log, tid: int) -> tuple[object, str, str, dict[str, str]]:
+    seed = synth_register_url(cc, domain, email)
+    r = await s.get(seed, timeout=25)
+    if _proxy_http(r.status_code):
+        return r, "seed", seed, {}
+    action, fields = _find_form(r.text, ("customerName",))
+    if action:
+        return r, "register", urljoin(str(r.url), action), fields
+    action, fields = _find_form(r.text, ("email",))
+    if action:
+        email_url = urljoin(str(r.url), action)
+        data = {k: v for k, v in fields.items() if k != "email"}
+        data["email"] = email
+        log.line("Flow", "", email, "seed -> claim", "dim", tid=tid)
+        r = await s.post(email_url, data=data, timeout=30)
+        if _proxy_http(r.status_code):
+            return r, "claim", email_url, {}
+        action, fields = _find_form(r.text, ("customerName",))
+        if action:
+            return r, "register", urljoin(str(r.url), action), fields
+    action, fields = _find_form(
+        r.text, ("anti-csrftoken-a2z", "claimCollectionLayoutType"))
+    if action:
+        claim_url = urljoin(str(r.url), action)
+        data = {k: v for k, v in fields.items()
+                if k not in ("customerName", "password", "passwordCheck")}
+        data["email"] = email
+        log.line("Flow", "", email, "claim -> register", "dim", tid=tid)
+        r = await s.post(claim_url, data=data, timeout=30)
+        if _proxy_http(r.status_code):
+            return r, "claim", claim_url, {}
+        action, fields = _find_form(r.text, ("customerName",))
+        if action:
+            return r, "register", urljoin(str(r.url), action), fields
+    return r, "none", str(r.url), {}
+
+
+async def _submit_registration(s, submit_url: str, hidden: dict[str, str],
+                               ident, email: str, field_order: list[str],
+                               pre: float) -> tuple[object, dict[str, str]]:
+    values = {"customerName": ident.full_name, "email": email,
+              "password": ident.password, "passwordCheck": ident.password}
+    data = {k: v for k, v in hidden.items()
+            if k not in ("customerName", "password", "passwordCheck", "email")}
+    for k in field_order:
+        if k in values:
+            data[k] = values[k]
+    data["email"] = email
+    data.setdefault("metadata1", "true")
+    await _nap(pre)
+    return await s.post(submit_url, data=data, timeout=30), data
 
 
 def make_identity(aid: str, mail_domain: str = "mail.tm"):
@@ -244,7 +346,7 @@ def make_identity(aid: str, mail_domain: str = "mail.tm"):
 
 
 def classify(html: str, status: int | None) -> tuple[str, str]:
-    low = (html or "").lower()
+    low = re.sub(r"<!--.*?-->", "", html or "", flags=re.S | re.I).lower()
     if any(x in low for x in CAPTCHA):
         return "b", "captcha_challenge"
     if any(x in low for x in UNUSUAL):
@@ -384,8 +486,7 @@ async def run_task(tid: int, cfg, alloc: DomainAllocator, proxies: OneShotProxyP
             inbox = await create_inbox(cfg, local)
             email = inbox.get("address", "")
             row["email"] = email
-            url = synth_register_url(cc, domain)
-            log.line("Gen", "", email, f"Using synthesised register URL for {cc}",
+            log.line("Gen", "", email, "Flow: seed -> claim -> register",
                      "dim", tid=tid)
 
             d_fill = round(random.uniform(5, 12), 1)
@@ -394,8 +495,6 @@ async def run_task(tid: int, cfg, alloc: DomainAllocator, proxies: OneShotProxyP
             values = {"customerName": ident.full_name, "email": email,
                       "password": ident.password,
                       "passwordCheck": ident.password}
-            data = {k: values[k] for k in field_order}
-            data["action"] = "register"
             char_count = sum(len(str(v)) for v in values.values())
             d_type = round(min(18.0, max(8.0, char_count * random.uniform(0.04, 0.18))), 1)
             row["dauer_fill"], row["dauer_type"] = d_fill, d_type
@@ -412,19 +511,23 @@ async def run_task(tid: int, cfg, alloc: DomainAllocator, proxies: OneShotProxyP
             }
             async with AsyncSession(impersonate="chrome", proxy=px, timeout=30,
                                     headers=headers) as s:
-                await sleep_timing(d_fill)
-                g = await s.get(url, timeout=25)
-                if g.status_code in (202, 403, 503):
-                    row["klasse"], row["status"] = "d", f"proxy_http_{g.status_code}"
+                r, stage, submit_url, hidden = await _registration_request(
+                    s, cc, domain, email, log, tid)
+                if _proxy_http(r.status_code):
+                    row["klasse"], row["status"] = "d", f"proxy_http_{r.status_code}"
                     log.line("Gen", "", email,
-                             f"Klasse d: {g.status_code}, Proxy #{idx} verworfen",
+                             f"Klasse d: {r.status_code}, Proxy #{idx} verworfen",
                              "warn", tid=tid)
-                    last_error["text"] = f"{cc} klasse d http {g.status_code}"
+                    last_error["text"] = f"{cc} klasse d http {r.status_code}"
                     continue
 
-                await sleep_timing(d_type)
-                await _nap(pre)
-                r = await s.post(url, data=data, timeout=30)
+                if stage == "register":
+                    await sleep_timing(d_fill)
+                    await sleep_timing(d_type)
+                    r, data = await _submit_registration(
+                        s, submit_url, hidden, ident, email, field_order, pre)
+                else:
+                    data = {k: values[k] for k in field_order}
                 html = r.text or ""
                 row["status"] = str(r.status_code)
                 klasse, detail = classify(html, r.status_code)
@@ -472,7 +575,7 @@ async def run_task(tid: int, cfg, alloc: DomainAllocator, proxies: OneShotProxyP
                                          "g-recaptcha-response": token,
                                          "h-captcha-response": token})
                             await _nap(random.uniform(1, 3))
-                            r = await s.post(url, data=data, timeout=30)
+                            r = await s.post(submit_url, data=data, timeout=30)
                             html = r.text or ""
                             row["status"] = str(r.status_code)
                             klasse, detail = classify(html, r.status_code)
@@ -487,7 +590,7 @@ async def run_task(tid: int, cfg, alloc: DomainAllocator, proxies: OneShotProxyP
                     log.line("Gen", "", email,
                              f"Klasse c retry {unusual_retries}/6", "warn", tid=tid)
                     await _nap(random.uniform(3, 8))
-                    r = await s.post(url, data=data, timeout=30)
+                    r = await s.post(submit_url, data=data, timeout=30)
                     html = r.text or ""
                     row["status"] = str(r.status_code)
                     klasse, detail = classify(html, r.status_code)
@@ -511,7 +614,7 @@ async def run_task(tid: int, cfg, alloc: DomainAllocator, proxies: OneShotProxyP
                         d = dict(data)
                         d["code"] = code
                         await _nap(random.uniform(1, 3))
-                        r = await s.post(url, data=d, timeout=30)
+                        r = await s.post(submit_url, data=d, timeout=30)
                         html = r.text or ""
                         row["status"] = str(r.status_code)
                         klasse, detail = classify(html, r.status_code)
