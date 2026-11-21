@@ -29,7 +29,8 @@ from modules.Engine.Amazon.amazon_core import accounts_dir, json_dumps, json_loa
 
 HEADERS = {
     "gen":       ["email", "email_password", "password", "firstName", "lastName",
-                  "phonenumber", "country_iso", "phone_iso", "proxy"],
+                  "phonenumber", "country_iso", "phone_iso", "proxy", "domain",
+                  "proxy_session"],
     "custom":    ["email", "email_password", "password", "firstName", "lastName",
                   "country_iso", "phone_iso", "phonenumber", "proxy"],
     "tasks":     ["email", "email_password", "password", "country_iso", "proxy"],
@@ -71,8 +72,24 @@ class AmazonStore:
         return self.base / f"{kind}_AmazonAccounts.csv"
 
     def _ensure_header(self, p: Path, kind: str) -> None:
+        want = HEADERS[kind]
         if not p.exists():
-            p.write_text(",".join(HEADERS[kind]) + "\n", encoding="utf-8")
+            p.write_text(",".join(want) + "\n", encoding="utf-8")
+            return
+        try:
+            with open(p, encoding="utf-8", newline="") as f:
+                first = f.readline().strip()
+        except Exception:
+            return
+        have = [h.strip() for h in first.split(",")] if first else []
+        if have == want:
+            return
+        rows = self.read(kind)
+        with open(p, "w", encoding="utf-8", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=want)
+            w.writeheader()
+            for r in rows:
+                w.writerow({k: r.get(k, "") for k in want})
 
     # ------------------------------------------------------------- Lesen
     def read(self, kind: str) -> list[dict]:

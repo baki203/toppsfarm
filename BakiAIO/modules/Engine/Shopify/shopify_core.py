@@ -1404,7 +1404,7 @@ async def cmd_selftest(cfg, state, pool, notifier):
 
 
 async def cmd_watch(cfg, state, pool, notifier, solver, mode, hosts):
-    if cfg.proxy.get("precheck", True) and pool.items:
+    if cfg.proxy.get("precheck", False) and pool.items:
         target = hosts[0] if hosts else (cfg.hosts[0] if cfg.hosts else "")
         if target:
             r = await pool.precheck(cfg, target)

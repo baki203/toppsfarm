@@ -138,7 +138,7 @@
   },
   "proxy": {
     "source": "auto",
-    "precheck": true,
+    "precheck": false,
     "check_timeout_s": 15
   },
   "state_db": "var/state.sqlite",

@@ -171,3 +171,87 @@ def parse_proxy_lines(text: str) -> list[str]:
         if n:
             out.append(n)
     return out
+
+
+def sticky_session(proxy: str, session_id: str, country: str | None = None) -> str:
+    """ProxyBaron: Modifier gehoeren ins Passwort, Land VOR Session.
+    Baut z. B. ...:base_country-de_session-abc123@host:port. Nur fuer Pool-
+    Proxies verwenden, nie fuer ISP/statische Proxies."""
+    if not proxy:
+        return proxy
+    m = re.match(r"(https?)://(?:([^:@/]+):([^@/]*)@)?([^/]+)$", proxy)
+    if not m or not m[2]:
+        return proxy
+    scheme, user, pw, hp = m[1], m[2], m[3], m[4]
+    base = re.sub(r"(?:_(?:country|session|lifetime|cc)-[^_]+)+$", "", pw)
+    sid = re.sub(r"[^A-Za-z0-9]", "", session_id or "")
+    suffix = ""
+    if country:
+        suffix += f"_country-{str(country).lower()}"
+    if sid:
+        suffix += f"_session-{sid}"
+    return f"{scheme}://{user}:{base}{suffix}@{hp}"
+
+
+class ProxyFailure(Exception):
+    """Proxy-seitiger Fehler (407, Auth, Timeout, Verbindungsabbruch)."""
+
+
+_NET_FAIL_MARKER = (
+    "timeout", "timed out", "connection", "connect tunnel", "couldn't connect",
+    "failed to perform", "curl: (7)", "curl: (28)", "curl: (35)", "curl: (56)",
+    "eof", "reset by peer", "remote end closed", "ssl",
+)
+
+
+def is_proxy_failure(exc: Exception | None = None, status: int | None = None) -> bool:
+    """True, wenn ein Fehler proxy-seitig ist (407/Auth/Timeout/Abbruch)."""
+    if status is not None and int(status) == 407:
+        return True
+    if exc is None:
+        return False
+    if isinstance(exc, ProxyFailure):
+        return True
+    text = f"{type(exc).__name__}: {exc}"
+    if is_proxy_auth_error(text):
+        return True
+    low = text.lower()
+    return any(k in low for k in _NET_FAIL_MARKER)
+
+
+async def run_with_failover(pool, fn, log=None, max_switches: int = 2,
+                            module: str = "amazon"):
+    """Fuehrt fn(proxy) aus. Bei proxy-seitigem Fehler: Proxy mark_dead und
+    mit dem naechsten aus dem Pool wiederholen, max. max_switches Wechsel.
+    Zaehlt als proxy-auth, nicht als Ban. Innerhalb des Tasks bleibt der
+    Proxy sonst gleich (Sticky)."""
+    from utilities.quality import Quality
+    q = Quality(f"proxy:{module}")
+    proxy = await pool.acquire() if pool is not None else None
+    switches = 0
+    try:
+        while True:
+            try:
+                return await fn(proxy)
+            except Exception as exc:
+                if not is_proxy_failure(exc) or pool is None:
+                    raise
+                q.banned("proxy-auth", "proxy-auth")
+                if proxy:
+                    pool.mark_dead(proxy)
+                if switches >= max_switches:
+                    raise
+                switches += 1
+                proxy = await pool.acquire()
+                if log is not None:
+                    try:
+                        log.line("Proxy", "", "",
+                                 f"proxy-auth -> Wechsel {switches}/{max_switches} "
+                                 f"({mask_proxy(proxy) or 'kein Proxy'})", "warn")
+                    except Exception:
+                        pass
+    finally:
+        try:
+            q.finish()
+        except Exception:
+            pass

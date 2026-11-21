@@ -2,6 +2,18 @@
 Stand 2026-11-20, ARBEITSWEISE (8 Punkte) + 4 QUALITY-Luecken. Deutsch. Je Punkt: Test + docs/STAND.md + commit + push.
 
 ## Stand Punkte
+28b PROXY OHNE VORPRUEFUNG: erledigt. settings(.example).json proxy.precheck=false (Schema
+   bleibt, manuell schaltbar); shopify_core.cmd_watch prueft nur bei precheck=true (Default
+   false), drop/gen/watch ohne Precheck. utilities/proxycheck.py unveraendert (nur CLI).
+   utilities/proxy.py: sticky_session (ProxyBaron: Modifier ins Passwort, Land vor Session),
+   ProxyFailure/is_proxy_failure (407/Auth/Timeout/Abbruch), run_with_failover (mark_dead +
+   naechster aus Pool, max 2 Wechsel, zaehlt proxy-auth, kein Ban). AmazonAIO Gen: Pool statt
+   Vorab-Proxy, Start-Log maskierter Proxy+Quelle, Failover in _gen_one, Sticky-Session je
+   Konto bei quelle=pool + exit-ip im Log; Artefakt accounts/Amazon/<email>.txt + gen-CSV mit
+   domain/proxy_session. Test: tote erste Zeile 127.0.0.1:9 -> proxy-auth Wechsel 1/2 -> ISP
+   (DE) exit ok, Helper-IP ok, Gen lief weiter (Ziel 404), compileall 0.
+
+## Stand Punkte
 28 ISP-PROXY VORRANG: erledigt. proxies/amazon/isp.txt kanonisch unter ROOT angelegt
    (APP_ROOT-Kopie bleibt). utilities/proxy.py: isp_proxy_file(module) prueft ROOT+APP_ROOT;
    proxy_files_for liefert bei vorhandener ISP-Datei ausschliesslich [isp.txt] (unabhaengig
