@@ -32,7 +32,43 @@ Stand 2026-11-20, ARBEITSWEISE (8 Punkte) + 4 QUALITY-Luecken. Deutsch. Je Punkt
     settings 87KB + proxies.txt, kein SkyridgeInbox). BLOCKER: Amazon liefert fuer
     Proxybaron-IPs Homepage 202 + Auth-Endpunkte 404 (Anti-Bot/Proxy-Reputation), Selftest
     100% Sperrquote - echte Registrierung mit aktuellem Proxy-Pool nicht moeglich (kein
-    Code-Fehler).
+Code-Fehler). 26b2: Residential-Leitung von Skyridge (elite.proxybaron.com:1000 mit
+    _session-<id>_lifetime-1440) ebenfalls getestet - frisch rotierende Session-IDs +
+    curl_cffi UND echter Chromium-Browser: amazon.de und amazon.com Auth-Endpunkte immer
+    202/404, keine Email-Form. Exit-IPs (94.136.152.222, AS39574 Minet Slovakia) von
+    Amazon geblockt. Amazon blockt auf IP-Reputation, nicht Client/Fingerprint. Ohne
+    saubere (nicht Amazon-geblockte) Residential-IP keine echte Registrierung.
+    26b3 (final): KEIN Proxy-Problem. Direkt ohne Proxy + echter gesternter Browser +
+    Cookies: amazon.de Home 200, /gp/sign-in.html 200, aber /ap/register und /gp/register
+    bleiben 404 ohne Formular (Anti-Bot legt Registrierung mit Status 404 + "Zwei-Schritt"
+    Inhaltsseite ab). Skyridge nutzt laut Crashlog selbst /ap/register. Account-Erstellung
+    ist durch Amazons Anti-Bot auf dieser Umgebung nicht zuverlaessig automatisierbar.
+    26b4: Auch echte Skyridge-Sessions (accounts\Amazon\.sessions\*__DE.json mit
+    at-acbde + aws-waf-token) direkt UND durch residential.byteproxies.io nicht
+    abspielbar: Home 202, /ap/register 404 (Zwei-Schritt-Inhalt). Token an Skyridges
+    gebundelten Browser/IP gekoppelt bzw. abgelaufen. Amazon-Account-Erstellung ist
+    aktuell hinter interaktivem Challenge (Zwei-Schritt/Captcha), nicht code-seitig
+    loesbar.
+    26b5: Endbefund nach vollstaendigem Selbsttest (echte Chrome channel=chrome,
+    stealthed): Der EINZIGE erreichbare Auth-Flow ist Homepage -> Klick
+    #nav-link-accountList -> /ap/signin (200, echtes Email-Feld). E-Mail+Weiter fuehrt
+    zu /ax/claim/intent?arb=... (funktioniert, anti-csrftoken-a2z da), sagt aber fuer
+    neue E-Mails "kein Konto", nur "andere E-Mail versuchen", KEIN Create-Button.
+    /ap/register, /ap/signin (direkt), /gp/register -> tote 404-Deko-Seite
+    ("Suchst du etwas?"/"Zwei-Schritt"), kein Captcha. Kein persoenlicher
+    Konto-erstellen-Link auf der Signin-Variante (nur business). KEINE loesbare
+    Challenge -> Inhouse-Solver hat nichts zu loesen. Persoenliche Amazon-Account-
+    Erstellung ist in dieser Umgebung nicht automatisierbar.
+    26b6: Auch im Request-Mode (curl_cffi, exakt Skyridge/BakiAIO-Aufbau) mit
+    Referer+Homepage-Cookies: /ap/signin und /ap/register = 404, Homepage = 202.
+    Ergebnis: Nicht Browser-vs-Request, sondern serverseitiges Amazon-Gate, das
+    von dieser Maschine aus ALLE Auth-/Register-Endpunkte mit toten 404-Seiten
+    beantwortet (Homepage/Produktseiten ok). Skyridge selbst ist gegen Extraktion
+    geschuetzt (pyinstxtractor scheitert, kein Zugriff auf echten Request-Code).
+    Selbst echte Chrome (158) bekommt /ap/register = 404 -> dieses Netz ist fuer
+    Amazon-Auth gated; Registrierung wuerde hier auch in Skyridge nicht laufen.
+    Einziger verbleibender Test (Traffic-Mitschnitt) wuerde System-Zertifikat-
+    aenderung + GUI-Schritt brauchen -> nicht ohne Freigabe. Blocker final.
 
 25 AGENTS+SETTINGS+OTP-IMAP: erledigt. AGENTS.md ersetzt (strikte Ausgabe: keine Vorrede,
    max 1 Zeile/Werkzeugruf, Ende 'fertig'+Tabelle(5)+Commit-Hash, STAND.md einziger Stand,
