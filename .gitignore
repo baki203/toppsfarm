@@ -17,4 +17,8 @@ proxies.txt
 
 BakiAIO/accounts/*/*.txt
 BakiAIO/settings.json
+proxies/*/isp.txt
+BakiAIO/proxies/*/isp.txt
+proxies/amazon/proxybaron.txt
+BakiAIO/proxies/amazon/proxybaron.txt
 

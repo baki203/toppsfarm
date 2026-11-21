@@ -2,6 +2,16 @@
 Stand 2026-11-20, ARBEITSWEISE (8 Punkte) + 4 QUALITY-Luecken. Deutsch. Je Punkt: Test + docs/STAND.md + commit + push.
 
 ## Stand Punkte
+28 ISP-PROXY VORRANG: erledigt. proxies/amazon/isp.txt kanonisch unter ROOT angelegt
+   (APP_ROOT-Kopie bleibt). utilities/proxy.py: isp_proxy_file(module) prueft ROOT+APP_ROOT;
+   proxy_files_for liefert bei vorhandener ISP-Datei ausschliesslich [isp.txt] (unabhaengig
+   von proxy.source, sticky, keine Pool-Rotation); proxy_origin -> isp|pool. amazon_core.py:
+   Wrapper isp_proxy_file/proxy_origin. AmazonAIO Gen loggt maskierten Proxy + quelle=isp|pool.
+   build_setup.ps1 kopiert proxies/amazon/isp.txt ins Setup. isp.txt via .gitignore vom Repo
+   ausgeschlossen (Passwort). Getestet: compileall 0, proxy_files_for('amazon') -> isp.txt,
+   Pool 1 Item, acquire -> ISP, Gen-Start loggt quelle=isp, _gen_one erhaelt ISP.
+
+## Stand Punkte
 27 PROXY-VORPRUEFUNG 1000 (chunked/background): erledigt. utilities/proxycheck.py:
    precheck_proxies jetzt concurrent (Semaphore, conc Default 20) + progress-Callback;
    neue CLI `python -m utilities.proxycheck --module --hosts --offset --limit --conc --resume`

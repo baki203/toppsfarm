@@ -48,6 +48,20 @@ def domain_for(cc: str) -> str:
     return DOMAINS.get(cc.upper(), ("amazon." + cc.lower(), "EUR", "en"))[0]
 
 
+def isp_proxy_file(module: str = "amazon") -> Path | None:
+    """ISP-Datei (sticky Einzel-IP) fuer das Modul. Eigener Pfad-Resolver:
+    ROOT und APP_ROOT werden beide geprueft. Hat Vorrang vor allen anderen
+    Quellen, unabhaengig von proxy.source."""
+    from utilities.proxy import isp_proxy_file as _isp
+    return _isp(module)
+
+
+def proxy_origin(module: str = "amazon") -> str:
+    """Log-Quelle: 'isp' wenn eine ISP-Datei greift, sonst 'pool'."""
+    from utilities.proxy import proxy_origin as _po
+    return _po(module)
+
+
 def currency_for(cc: str) -> str:
     return DOMAINS.get(cc.upper(), ("amazon." + cc.lower(), "EUR", "en"))[1]
 

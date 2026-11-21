@@ -133,9 +133,10 @@ class AmazonAIOModule:
         bar = StatusBar(log)
         bar.header(f"Amazon{cc.upper()} Account Generator")
         proxy = await self._acquire_proxy()
-        if proxy:
-            from utilities.proxy import mask_proxy
-            log.line("Gen", "", "", mask_proxy(proxy), "dim")
+        from utilities.proxy import mask_proxy, proxy_origin
+        log.line("Gen", "", "",
+                 f"{mask_proxy(proxy) or 'kein Proxy'} (quelle={proxy_origin('amazon')})",
+                 "dim")
         try:
             n = int(input("  Anzahl Konten [1]: ").strip() or "1")
         except ValueError:

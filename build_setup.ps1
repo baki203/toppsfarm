@@ -40,6 +40,12 @@ if (Test-Path $Proxies) {
     Copy-Item $Proxies (Join-Path $Setup "proxies\proxies.txt")
     Remove-Item -Force (Join-Path $Setup "proxies\.gitkeep") -ErrorAction SilentlyContinue
 }
+# ISP-Proxy je Modul (Vorrang, sticky IP) mit ins Setup
+$IspProxy = Join-Path $Root "proxies\amazon\isp.txt"
+if (Test-Path $IspProxy) {
+    New-Item -ItemType Directory -Force -Path (Join-Path $Setup "proxies\amazon") | Out-Null
+    Copy-Item $IspProxy (Join-Path $Setup "proxies\amazon\isp.txt")
+}
 
 # 4) kein Quellmuell im Setup (keine .md/.py/yaml/config)
 Get-ChildItem -Path $Setup -Recurse -Include *.md,*.py,*.yaml,*.yml -File -ErrorAction SilentlyContinue |

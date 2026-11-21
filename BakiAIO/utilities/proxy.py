@@ -18,7 +18,7 @@ import re
 import sys
 from pathlib import Path
 
-from utilities.root import ROOT
+from utilities.root import ROOT, APP_ROOT
 SHARED_FILE = ROOT / "proxies" / "proxies.txt"
 
 PROXY_AUTH_MUSTER = (
@@ -90,9 +90,29 @@ def normalize_proxy(line: str) -> str | None:
     return None
 
 
+def isp_proxy_file(module: str) -> Path | None:
+    """Sticky-ISP-Datei eines Moduls (proxies/<module>/isp.txt).
+    ROOT und APP_ROOT werden beide geprueft. Hat Vorrang vor allen anderen
+    Quellen, unabhaengig von proxy.source (eine sticky IP je Task)."""
+    for base in (ROOT, APP_ROOT):
+        p = base / "proxies" / module / "isp.txt"
+        if p.exists():
+            return p
+    return None
+
+
+def proxy_origin(module: str) -> str:
+    """Quelle fuer Logs: 'isp' wenn eine ISP-Datei greift, sonst 'pool'."""
+    return "isp" if isp_proxy_file(module) else "pool"
+
+
 def proxy_files_for(module: str) -> list[Path]:
     """Liefert die Proxy-Dateien in der konfigurierten Reihenfolge
-    (auto|shared|module), ohne Modul-Hardcodes."""
+    (auto|shared|module), ohne Modul-Hardcodes. Eine vorhandene ISP-Datei
+    (proxies/<module>/isp.txt) hat Vorrang vor allen anderen Quellen."""
+    isp = isp_proxy_file(module)
+    if isp:
+        return [isp]
     source = proxy_source()
     files: list[Path] = []
     mod_dir = ROOT / "proxies" / module
