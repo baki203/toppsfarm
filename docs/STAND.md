@@ -2,6 +2,14 @@
 Stand 2026-11-20, ARBEITSWEISE (8 Punkte) + 4 QUALITY-Luecken. Deutsch. Je Punkt: Test + docs/STAND.md + commit + push.
 
 ## Stand Punkte
+28c AMAZON HUMAN-FLOW (PROBE): erledigt. tools/amazon_probe.py: nach load/networkidle zuerst
+   Cookies akzeptieren, echter Mauszeiger (_cursor_wander + _human_click mit Ziel-Jitter), langsamere
+   Klicks/Tipperei, frischer Browser + frischer Proxy + frische Identitaet je Versuch. Catchall-Rotation
+   (30 Adressen, zufaelliger Start) mit Skyridge-Mails (vorname+nachname, optional 2 Digits), Name/
+   Passwort je Versuch neu, Domain via domain_for, --flow-cc/--flow-count. Test NL 2 Versuche:
+   #1 /ap/register pw=True, submit 200, "Account aanmaken mislukt / ongewone activiteit", #2 Intent.
+   BLOCKER: Amazon serverseitige "unusual activity"-Erkennung, kein Konto erzeugt.
+
 28b PROXY OHNE VORPRUEFUNG: erledigt. settings(.example).json proxy.precheck=false (Schema
    bleibt, manuell schaltbar); shopify_core.cmd_watch prueft nur bei precheck=true (Default
    false), drop/gen/watch ohne Precheck. utilities/proxycheck.py unveraendert (nur CLI).
