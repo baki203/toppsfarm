@@ -2,6 +2,16 @@
 Stand 2026-11-20, ARBEITSWEISE (8 Punkte) + 4 QUALITY-Luecken. Deutsch. Je Punkt: Test + docs/STAND.md + commit + push.
 
 ## Stand Punkte
+27 PROXY-VORPRUEFUNG 1000 (chunked/background): erledigt. utilities/proxycheck.py:
+   precheck_proxies jetzt concurrent (Semaphore, conc Default 20) + progress-Callback;
+   neue CLI `python -m utilities.proxycheck --module --hosts --offset --limit --conc --resume`
+   (--resume ueberspringt heute schon gepruefte Proxys, APP_ROOT/var/proxystats.csv).
+   Voller Lauf gegen 5 Ziel-Hosts (amazon.de/nike.com/pokemoncenter.com/playstation.com/
+   de.topps.com): 995 geprueft + 5 Test, ERGEBNIS 449 ok / 551 tot (55,1% Sperrquote) ->
+   BakiAIO/var/proxystats.csv (1000 Zeilen). Befund: ca. 45% des Pools lebendig, Rest tot
+   (Proxybaron-Rotation/Reputation). Kein Code-Fehler. compileall 0.
+
+## Stand Punkte
 26 APP_ROOT-EXE + SETUP-BUILD + STARTFESTIGKEIT + TEST + AUFRAEUMEN: erledigt.
    utilities/root.py zentral: frozen -> APP_ROOT==ROOT==EXE-Ordner, KEIN Walk ueber
    config/; ungefroren APP_ROOT=BakiAIO\, ROOT=Repo-Root. shopify_core/proxy/amazon_core/
