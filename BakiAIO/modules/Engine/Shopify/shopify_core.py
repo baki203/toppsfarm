@@ -773,14 +773,22 @@ async def products_json(s: AsyncSession, cfg: Settings, host: str, limit: int = 
 class Solver:
     def __init__(self, cfg: Settings):
         self.cfg = cfg
-        self.provider = ENV.get("CAPTCHA_PROVIDER", "capsolver").lower()
-        self.key = {"capsolver": ENV.get("CAPSOLVER_KEY", ""),
-                    "2captcha": ENV.get("TWOCAPTCHA_KEY", ""),
-                    "capmonster": ENV.get("CAPMONSTER_KEY", "")}.get(self.provider, "")
+        conf = self.cfg.captcha or {}
+        keys = conf.get("keys") or {}
+        prov = ENV.get("CAPTCHA_PROVIDER") or conf.get("skyridge_provider") or "capsolver"
+        prov = {"2captcha": "2captcha", "2Captcha": "2captcha",
+                "capsolver": "capsolver", "capmonster": "capmonster"}.get(prov, "capsolver")
+        self.provider = prov
+        self.key = {"capsolver": ENV.get("CAPSOLVER_KEY"),
+                    "2captcha": ENV.get("TWOCAPTCHA_KEY"),
+                    "capmonster": ENV.get("CAPMONSTER_KEY")}.get(prov, "") or \
+            next((str(v) for k, v in keys.items()
+                  if k.lower().replace("captcha", "") == prov.replace("captcha", "")
+                  and isinstance(v, str) and v), "")
 
     @property
     def ok(self) -> bool:
-        return bool(self.cfg.captcha.get("enabled") and self.key)
+        return bool(self.key and self.cfg.captcha.get("enabled", True))
 
     async def solve(self, kind, sitekey, url, proxy) -> str | None:
         if not self.ok:
@@ -808,8 +816,11 @@ class Solver:
         return d
 
     async def _create(self, kind, key, url, proxy) -> str:
-        c, t2, cm = {"hcaptcha": ("HCaptchaTask", "hcaptcha", "HCaptchaTask"),
-                     "recaptcha": ("ReCaptchaV2Task", "recaptcha_v2", "RecaptchaV2Task")}[kind]
+        table = {"hcaptcha": ("HCaptchaTask", "hcaptcha", "HCaptchaTask"),
+                 "recaptcha": ("ReCaptchaV2Task", "recaptcha_v2", "RecaptchaV2Task"),
+                 "funcaptcha": ("FunCaptchaTask", "funcaptcha", "FunCaptchaTask"),
+                 "arkose": ("FunCaptchaTask", "funcaptcha", "FunCaptchaTask")}
+        c, t2, cm = table.get(kind, table["recaptcha"])
         async with AsyncSession(timeout=30) as s:
             if self.provider in ("capsolver", "capmonster"):
                 base = ("https://api.capsolver.com" if self.provider == "capsolver"

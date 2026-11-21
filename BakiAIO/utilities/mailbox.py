@@ -31,7 +31,7 @@ def _session() -> AsyncSession:
                         headers={"accept": "application/json", "user-agent": UA})
 
 
-async def create_inbox(cfg=None) -> dict:
+async def create_inbox(cfg=None, local: str = "") -> dict:
     """-> {'address': ..., 'password': ..., 'provider': 'mailtm'|'catchall'}.
     Legt ein Konto auf mail.tm an oder erzeugt eine Catch-All-Adresse (A1).
     `cfg` ist ein Settings-Objekt (oder None -> Settings.load())."""
@@ -41,7 +41,7 @@ async def create_inbox(cfg=None) -> dict:
     provider = (cfg.mail.get("provider", "mailtm") if getattr(cfg, "mail", None)
                 else "mailtm")
     if provider == "catchall":
-        return _catchall_inbox(cfg)
+        return _catchall_inbox(cfg, local)
     async with _session() as s:
         r = await s.get(f"{API}/domains")
         if r.status_code != 200:
@@ -60,9 +60,6 @@ async def create_inbox(cfg=None) -> dict:
         return {"address": acc["address"], "password": password, "provider": "mailtm"}
 
 
-_CATCHALL_RR = 0
-
-
 def _catchall_domains(conf: dict) -> list[str]:
     """B2: listet alle Catch-All-Domains auf (mail.catchall.domains Liste, sonst
     mail.catchall.domain Einzelwert). Verhindert Einzel-Domain-Clipping, indem
@@ -75,12 +72,11 @@ def _catchall_domains(conf: dict) -> list[str]:
     return doms
 
 
-def _catchall_inbox(cfg) -> dict:
-    """Erzeugt eine Catch-All-Adresse aus den Skyridge-Mastermails (round-robin,
-    B2). Der IMAP-Zugriff erfolgt ueber das Master-Postfach (mastermail/password),
-    an das der Catch-All weiterleitet. Liefert ein klares MailboxError, wenn kein
-    gueltiger IMAP-Zugang konfiguriert ist."""
-    global _CATCHALL_RR
+def _catchall_inbox(cfg, local: str = "") -> dict:
+    """Erzeugt eine Catch-All-Adresse aus den Skyridge-Mastermails mit
+    persistenter, konfliktfreier Rotation. Der IMAP-Zugriff erfolgt ueber das
+    Master-Postfach, an das der Catch-All weiterleitet."""
+    from utilities.rotation import pick
     if cfg is None:
         from modules.Engine.Shopify.shopify_core import Settings
         cfg = Settings.load()
@@ -90,9 +86,8 @@ def _catchall_inbox(cfg) -> dict:
     if not entries:
         raise MailboxError("catchall: keine Mastermails/Catch-All-Adressen in settings.json")
     base = next((m for m in mms if m.get("mastermail") and m.get("password")), None)
-    entry = entries[_CATCHALL_RR % len(entries)]
-    _CATCHALL_RR += 1
-    address = str(entry.get("catchall") or "").strip()
+    entry = pick(entries, local)
+    address = str(entry.get("address") or entry.get("catchall") or "").strip()
     imap_user = str(entry.get("mastermail") or (base or {}).get("mastermail") or "").strip()
     imap_pass = str(entry.get("password") or (base or {}).get("password") or "").strip()
     host = str(entry.get("imap_host") or mail_cfg.get("imap_host") or "").strip()
@@ -108,6 +103,8 @@ def _catchall_inbox(cfg) -> dict:
             "catchall: IMAP nicht konfiguriert (Mastermails ohne IMAP/mail.catchall)")
     return {
         "address": address, "password": imap_pass, "provider": "catchall",
+        "catchall_base": entry.get("catchall_base", entry.get("catchall", "")),
+        "catchall_domain": entry.get("catchall_domain", ""),
         "imap": {"host": host, "port": port, "user": imap_user, "password": imap_pass},
         "since_days": int(mail_cfg.get("since_days", 1)),
         "delete_after_fetch": bool(mail_cfg.get("delete_after_fetch", False)),

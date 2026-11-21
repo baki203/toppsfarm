@@ -48,6 +48,20 @@ def domain_for(cc: str) -> str:
     return DOMAINS.get(cc.upper(), ("amazon." + cc.lower(), "EUR", "en"))[0]
 
 
+GEN_PRIORITY = ["ZA", "EG", "SA", "IN", "AE", "TR", "NL", "BE", "IT", "PL",
+                "SE", "IE", "FR", "ES", "GB", "MX", "BR", "SG", "AU", "CN", "DE"]
+
+MARKETPLACE_IDS = {
+    "ZA": "AE08WJ6YKNBMC", "EG": "ARBP9OOSHTCHU", "SA": "A17E79C6D8DWNP",
+    "IN": "A21TJRUUN4KGV", "AE": "A2VIGQ35RCS4UG", "TR": "A33AVAJ2PDY3EV",
+    "NL": "A1805IZSGTT6HS", "BE": "AMEN7PMS3EDWL", "IT": "APJ6JRA9NG5V4",
+    "PL": "A1C3SOZRARQ6R3", "SE": "A2NODRKZP88ZB9", "IE": "A28R8C7NBKEWEA",
+    "FR": "A13V1IB3VIYZZH", "ES": "A1RKKUPIHCS9HS", "GB": "A1F83G8C2ARO7P",
+    "MX": "A1AM78C64UM0Y8", "BR": "A2Q3Y263D00KWC", "SG": "A19VAU5U5O7RUS",
+    "AU": "A39IBJ37TRP1C6", "CN": "A1VC38T7YXB528", "DE": "A1PA6795UKMFR9",
+}
+
+
 def isp_proxy_file(module: str = "amazon") -> Path | None:
     """ISP-Datei (sticky Einzel-IP) fuer das Modul. Eigener Pfad-Resolver:
     ROOT und APP_ROOT werden beide geprueft. Hat Vorrang vor allen anderen

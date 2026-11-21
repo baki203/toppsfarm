@@ -2,6 +2,7 @@
 """Baki AIO - Startpunkt. Banner und Menue 1-14 / 0. Platz 1: Topps."""
 from __future__ import annotations
 
+import argparse
 import sys
 from pathlib import Path
 
@@ -9,6 +10,20 @@ from utilities.logger.CrashLogger import CrashLogger
 from utilities.root import APP_ROOT, ensure_runtime, ensure_settings
 
 SLOTS = 14
+ARGS = argparse.Namespace(browser=False, show=False)
+
+
+def _parse_args():
+    p = argparse.ArgumentParser(add_help=True)
+    p.add_argument("--browser", action="store_true",
+                   help="Amazon Generator mit Browser statt REQUEST-Modus")
+    p.add_argument("--show", action="store_true",
+                   help="Browserfenster nur zusammen mit --browser")
+    p.add_argument("--threads", type=int, default=5,
+                   help="Amazon Generator Threads (1-30)")
+    p.add_argument("--tasks", type=int, default=0,
+                   help="Amazon Generator Aufgabeanzahl")
+    return p.parse_known_args()[0]
 
 # Laufzeit-Ordner relativ zur EXE (frozen) bzw. Programmwurzel sicherstellen.
 CRASHLOG = ensure_runtime()
@@ -56,7 +71,12 @@ def _nike():
 
 def _amazon():
     from modules.Generators.Amazon.AmazonAIO import AmazonAIOModule
-    return AmazonAIOModule()
+    mod = AmazonAIOModule()
+    mod.browser = bool(getattr(ARGS, "browser", False))
+    mod.show = bool(getattr(ARGS, "show", False)) and mod.browser
+    mod.threads = max(1, min(30, int(getattr(ARGS, "threads", 5) or 5)))
+    mod.tasks = max(0, int(getattr(ARGS, "tasks", 0) or 0))
+    return mod
 
 
 def _riftbound():
@@ -191,6 +211,8 @@ def menu() -> int:
 
 
 def main() -> int:
+    global ARGS
+    ARGS = _parse_args()
     _auto_update()
     return menu()
 

@@ -16,11 +16,20 @@ _STORAGE = "var/browser"
 
 class Browser:
     def __init__(self, user_data_dir: str = _STORAGE, headless: bool = True,
-                 seed: int | None = None, proxy: str | None = None):
+                 seed: int | None = None, proxy: str | None = None,
+                 locale: str = "de-DE", timezone_id: str = "Europe/Berlin",
+                 viewport: dict | None = None, user_agent: str | None = None,
+                 channel: str | None = None, args: list[str] | None = None):
+        self.args = args or []
+        self.channel = channel
         self.user_data_dir = user_data_dir
         self.headless = headless
         self.seed = seed if seed is not None else 1337
         self.proxy = proxy
+        self.locale = locale
+        self.timezone_id = timezone_id
+        self.viewport = viewport or {"width": 1366, "height": 768}
+        self.user_agent = user_agent or UA
         self.pw = self.browser = None
         self.human = Human(seed)
 
@@ -29,13 +38,17 @@ class Browser:
             return
         from utilities.proxy import proxy_playwright
         self.pw = await async_playwright().start()
+        launch = {}
+        if self.channel:
+            launch["channel"] = self.channel
         self.browser = await self.pw.chromium.launch_persistent_context(
-            self.user_data_dir, headless=self.headless,
-            user_agent=UA, locale="de-DE", timezone_id="Europe/Berlin",
-            viewport={"width": 1366, "height": 768},
+            self.user_data_dir, headless=self.headless, **launch,
+            user_agent=self.user_agent, locale=self.locale,
+            timezone_id=self.timezone_id, viewport=self.viewport,
             proxy=proxy_playwright(self.proxy),
             args=["--disable-blink-features=AutomationControlled",
-                  "--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"])
+                  "--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"]
+                 + self.args)
         await apply_fingerprint(self.browser, self.seed)
 
     async def stop(self):
@@ -67,6 +80,9 @@ async def new_context(profile: dict | None = None) -> Browser:
     b = Browser(headless=bool(p.get("headless", True)),
                 seed=p.get("seed", 1337),
                 user_data_dir=p.get("user_data_dir", _STORAGE),
-                proxy=p.get("proxy"))
+                proxy=p.get("proxy"), locale=p.get("locale", "de-DE"),
+                timezone_id=p.get("timezone_id", "Europe/Berlin"),
+                viewport=p.get("viewport"), user_agent=p.get("user_agent"),
+                channel=p.get("channel"), args=p.get("args"))
     await b.start()
     return b

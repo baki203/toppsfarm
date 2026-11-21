@@ -42,6 +42,10 @@ class AmazonAIOModule:
     laeuft. Modul-eigener Statusbalken (Kopfzeile) je Durchlauf."""
 
     title = "Amazon AIO"
+    show = False
+    browser = False
+    threads = 5
+    tasks = 0
 
     FEATURES = {
         1: ("Account Generator", "generate"),
@@ -133,46 +137,44 @@ class AmazonAIOModule:
 
     # ---------------------------------------------------------- 1 Account Generator
     async def generate(self, cc: str) -> None:
-        """1 Account Generator: erstellt Konten (HTTP, non-PVA, Catch-All-OTP)."""
+        """1 Account Generator: REQUEST-Modus, 5 Threads, eine Domain je Task."""
         log = self._log(cc)
         bar = StatusBar(log)
-        bar.header(f"Amazon{cc.upper()} Account Generator")
-        pool = self._pool()
-        from utilities.proxy import mask_proxy, proxy_origin
-        origin = proxy_origin("amazon")
-        first = pool.items[0] if pool.items else None
-        log.line("Gen", "", "",
-                 f"{mask_proxy(first) or 'kein Proxy'} "
-                 f"(quelle={origin}, keine Vorpruefung)", "dim")
+        bar.header(f"Amazon{cc.upper()} Account Generator"
+                   + (" [BROWSER]" if self.browser else " [REQUEST]"))
+        default_n = self.tasks or 1
         try:
-            n = int(input("  Anzahl Konten [1]: ").strip() or "1")
+            n = int(input(f"  Anzahl Konten [{default_n}]: ").strip() or str(default_n))
+            threads = int(input(f"  Threads [{self.threads}, max 30]: ").strip()
+                          or str(self.threads))
         except ValueError:
-            n = 1
-        print("  Hinweis: fuer OTP per E-Mail nutzt der Generator die")
-        print("  Skyridge-Mastermails (settings.json 'Mastermails', non-PVA).")
-        print("  Telefon nur bei Aufforderung (A10).")
-        for i in range(n):
-            log.line("Gen", "", "", f"Konto {i+1}/{n} anlegen ...", "info")
-            acc = await self._gen_one(cc, log, pool=pool)
-            if acc:
-                log.status("created")
-                log.line("Gen", "", acc["email"], "Account created", "ok")
-                # Skyridge: an gen_AmazonAccounts.csv anhaengen
-                self._store().append("gen", {
-                    "email": acc["email"], "email_password": "",
-                    "password": acc["password"],
-                    "firstName": acc.get("first_name", ""),
-                    "lastName": acc.get("last_name", ""),
-                    "phonenumber": "", "country_iso": cc, "phone_iso": "",
-                    "proxy": acc.get("proxy", ""),
-                    "domain": acc.get("domain", domain_for(cc)),
-                    "proxy_session": acc.get("proxy_session", ""),
-                }, dedupe_keys=["email"])
-                self._write_artifact(acc)
-            else:
-                log.status("error")
-                log.line("Gen", "", "", "Account generation failed", "err")
-            bar.render()
+            n, threads = default_n, self.threads
+        threads = max(1, min(30, threads))
+
+        def artifact(acc: dict) -> None:
+            self._write_artifact(acc)
+            self._store().append("gen", {
+                "email": acc["email"], "email_password": "",
+                "password": acc["password"],
+                "firstName": acc.get("first_name", ""),
+                "lastName": acc.get("last_name", ""),
+                "phonenumber": "", "country_iso": acc.get("domain", cc).split(".")[-1].upper(),
+                "phone_iso": "", "proxy": acc.get("proxy(maskiert)", ""),
+                "domain": acc.get("domain", domain_for(cc)),
+                "proxy_session": acc.get("proxy_session", ""),
+            }, dedupe_keys=["email"])
+
+        from modules.Engine.Amazon.amazon_signup import run_burst
+        res = await run_burst(n, threads, artifact_fn=artifact, browser=self.browser)
+        log.status("created", res.get("created", 0))
+        log.status("error", res.get("tasks", 0) - res.get("created", 0))
+        bar.render()
+        if res.get("abort"):
+            log.line("Gen", "", "", f"Abbruch nach 20 Versuchen ohne Konto: {res['abort']}", "err")
+        log.line("Gen", "", "",
+                 f"Fertig: {res.get('tasks', 0)} Tasks, {res.get('created', 0)} Konten, "
+                 f"Klassen={res.get('classes', {})}, Domains={','.join(res.get('domains', []))}",
+                 "ok")
         print()
 
     def _write_artifact(self, acc: dict) -> None:
@@ -197,106 +199,26 @@ class AmazonAIOModule:
         p.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     async def _gen_one(self, cc: str, log: SkyLogger, proxy: str | None = None,
-                       pool=None) -> dict | None:
-        """Einzelnes Konto: Identitaet + Catch-All-Mail + HTTP-Registrierung.
-        Mit pool: Sticky-Session je Konto, Failover max. 2 Wechsel."""
-        import secrets
-        from utilities.mailbox import create_inbox, wait_for_link
-        from utilities.identity import IdentityGenerator
-        from utilities.proxy import (ProxyFailure, is_proxy_failure, mask_proxy,
-                                     proxy_origin, run_with_failover,
-                                     sticky_session)
-
-        ident = IdentityGenerator().generate()
-        try:
-            inbox = await create_inbox()
-        except Exception as exc:
-            log.line("Gen", "", "", f"Mailbox: {exc}", "err")
+                       pool=None, warm_seconds: int = 70) -> dict | None:
+        from modules.Engine.Shopify.shopify_core import Settings
+        cfg = Settings.load()
+        if self.browser:
+            from modules.Engine.Amazon.amazon_browser_gen import run_attempt
+            row, acc = await run_attempt(cc, log, cfg, self._write_artifact,
+                                         warm_seconds=warm_seconds, show=self.show)
+            self._last_attempt_row = row
+            return acc
+        from modules.Engine.Amazon.amazon_signup import (
+            DomainAllocator, ProxyRing, run_task)
+        res = await run_task(1, cfg, DomainAllocator(), ProxyRing(),
+                             self._write_artifact, asyncio.Event(), {})
+        self._last_attempt_row = res.get("row", {})
+        if not res.get("created"):
+            log.status("error")
             return None
-        if not inbox or not inbox.get("address"):
-            return None
-
-        origin = proxy_origin("amazon")
-        session_id = secrets.token_hex(6) if origin == "pool" else ""
-
-        async def attempt(base_proxy: str | None) -> dict | None:
-            px = base_proxy
-            if px and origin == "pool" and session_id:
-                px = sticky_session(px, session_id, country=cc.lower())
-            async with self._client(cc, email=inbox["address"], log=log,
-                                    proxy=px) as c:
-                try:
-                    if session_id:
-                        try:
-                            ipr = await c.s.get("https://api.ipify.org", timeout=20)
-                            exit_ip = (ipr.text or "").strip()
-                        except Exception as exc:
-                            if is_proxy_failure(exc):
-                                raise ProxyFailure(str(exc))
-                            exit_ip = "?"
-                        log.line("Gen", "", inbox["address"],
-                                 f"session={session_id} exit-ip={exit_ip}", "dim")
-                    r = await c.s.get(c.url("/ap/register"), timeout=30)
-                    if is_proxy_failure(status=r.status_code):
-                        raise ProxyFailure(f"http {r.status_code}")
-                    if r.status_code != 200:
-                        reason = "anti-bot (202)" if r.status_code in (202, 403, 503) else \
-                                 ("not-found (404)" if r.status_code == 404 else f"http {r.status_code}")
-                        log.line("Gen", "", inbox["address"],
-                                 f"Register-Page blockiert: {reason}", "err")
-                        log.status("error")
-                        return None
-                    data = {
-                        "customerName": ident.full_name,
-                        "email": inbox["address"],
-                        "password": ident.password,
-                        "passwordCheck": ident.password,
-                        "create": "0", "action": "register",
-                    }
-                    r = await c.s.post(c.url("/ap/register"), data=data, timeout=30)
-                    if is_proxy_failure(status=r.status_code):
-                        raise ProxyFailure(f"http {r.status_code}")
-                    if r.status_code != 200:
-                        reason = "anti-bot (202)" if r.status_code in (202, 403, 503) else \
-                                 (f"http {r.status_code}")
-                        log.line("Gen", "", inbox["address"],
-                                 f"Registrierung abgewiesen: {reason}", "err")
-                        log.status("error")
-                        return None
-                    link = None
-                    try:
-                        link = await wait_for_link(inbox, timeout=45.0)
-                    except Exception:
-                        link = None
-                    return {"site": cc, "email": inbox["address"],
-                            "password": ident.password,
-                            "first_name": ident.first_name,
-                            "last_name": ident.last_name,
-                            "domain": domain_for(cc),
-                            "proxy": mask_proxy(px) or "",
-                            "proxy_session": session_id,
-                            "verify_link": link or ""}
-                except ProxyFailure:
-                    raise
-                except Exception as exc:
-                    if is_proxy_failure(exc):
-                        raise ProxyFailure(f"{type(exc).__name__}: {exc}")
-                    log.line("Gen", "", inbox["address"],
-                             f"Registrierung Fehler: {type(exc).__name__}: {exc}", "err")
-                    log.status("error")
-                    return None
-
-        if pool is not None:
-            try:
-                return await run_with_failover(pool, attempt, log=log,
-                                               max_switches=2, module="amazon")
-            except Exception as exc:
-                log.line("Gen", "", inbox["address"],
-                         f"Proxy-Failover erschoepft: {type(exc).__name__}: {exc}",
-                         "err")
-                log.status("error")
-                return None
-        return await attempt(proxy)
+        r = res["row"]
+        return {"email": r.get("email", ""),
+                "password": "", "first_name": "", "last_name": ""}
 
     # ---------------------------------------------------------- 2 Account Reset
     async def reset(self, cc: str) -> None:
