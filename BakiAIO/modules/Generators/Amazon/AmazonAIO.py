@@ -42,8 +42,6 @@ class AmazonAIOModule:
     laeuft. Modul-eigener Statusbalken (Kopfzeile) je Durchlauf."""
 
     title = "Amazon AIO"
-    show = False
-    browser = False
     threads = 5
     tasks = 0
 
@@ -140,8 +138,7 @@ class AmazonAIOModule:
         """1 Account Generator: REQUEST-Modus, 5 Threads, eine Domain je Task."""
         log = self._log(cc)
         bar = StatusBar(log)
-        bar.header(f"Amazon{cc.upper()} Account Generator"
-                   + (" [BROWSER]" if self.browser else " [REQUEST]"))
+        bar.header(f"Amazon{cc.upper()} Account Generator [REQUEST]")
         default_n = self.tasks or 1
         try:
             n = int(input(f"  Anzahl Konten [{default_n}]: ").strip() or str(default_n))
@@ -165,12 +162,17 @@ class AmazonAIOModule:
             }, dedupe_keys=["email"])
 
         from modules.Engine.Amazon.amazon_signup import run_burst
-        res = await run_burst(n, threads, artifact_fn=artifact, browser=self.browser)
+        res = await run_burst(n, threads, artifact_fn=artifact)
         log.status("created", res.get("created", 0))
         log.status("error", res.get("tasks", 0) - res.get("created", 0))
         bar.render()
         if res.get("abort"):
-            log.line("Gen", "", "", f"Abbruch nach 20 Versuchen ohne Konto: {res['abort']}", "err")
+            log.line("Gen", "", "", f"Abbruch: {res['abort']}", "err")
+        d = res.get("daily", {})
+        log.line("Gen", "", "",
+                 f"Tagesziel: attempts={d.get('attempts', 0)} clean={d.get('clean', 0)} "
+                 f"captcha={d.get('captcha', 0)} success={d.get('success', 0)} "
+                 f"Quote={d.get('quote', '0.0%')}", "info")
         log.line("Gen", "", "",
                  f"Fertig: {res.get('tasks', 0)} Tasks, {res.get('created', 0)} Konten, "
                  f"Klassen={res.get('classes', {})}, Domains={','.join(res.get('domains', []))}",
@@ -198,20 +200,13 @@ class AmazonAIOModule:
         ]
         p.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
-    async def _gen_one(self, cc: str, log: SkyLogger, proxy: str | None = None,
-                       pool=None, warm_seconds: int = 70) -> dict | None:
+    async def _gen_one(self, cc: str, log: SkyLogger) -> dict | None:
         from modules.Engine.Shopify.shopify_core import Settings
-        cfg = Settings.load()
-        if self.browser:
-            from modules.Engine.Amazon.amazon_browser_gen import run_attempt
-            row, acc = await run_attempt(cc, log, cfg, self._write_artifact,
-                                         warm_seconds=warm_seconds, show=self.show)
-            self._last_attempt_row = row
-            return acc
         from modules.Engine.Amazon.amazon_signup import (
-            DomainAllocator, ProxyRing, run_task)
-        res = await run_task(1, cfg, DomainAllocator(), ProxyRing(),
-                             self._write_artifact, asyncio.Event(), {})
+            DailyCounter, DomainAllocator, OneShotProxyPool, run_task)
+        cfg = Settings.load()
+        res = await run_task(1, cfg, DomainAllocator(), OneShotProxyPool(),
+                             self._write_artifact, asyncio.Event(), DailyCounter(), {})
         self._last_attempt_row = res.get("row", {})
         if not res.get("created"):
             log.status("error")

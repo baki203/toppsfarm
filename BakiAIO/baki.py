@@ -10,15 +10,11 @@ from utilities.logger.CrashLogger import CrashLogger
 from utilities.root import APP_ROOT, ensure_runtime, ensure_settings
 
 SLOTS = 14
-ARGS = argparse.Namespace(browser=False, show=False)
+ARGS = argparse.Namespace(threads=5, tasks=0)
 
 
 def _parse_args():
     p = argparse.ArgumentParser(add_help=True)
-    p.add_argument("--browser", action="store_true",
-                   help="Amazon Generator mit Browser statt REQUEST-Modus")
-    p.add_argument("--show", action="store_true",
-                   help="Browserfenster nur zusammen mit --browser")
     p.add_argument("--threads", type=int, default=5,
                    help="Amazon Generator Threads (1-30)")
     p.add_argument("--tasks", type=int, default=0,
@@ -72,8 +68,6 @@ def _nike():
 def _amazon():
     from modules.Generators.Amazon.AmazonAIO import AmazonAIOModule
     mod = AmazonAIOModule()
-    mod.browser = bool(getattr(ARGS, "browser", False))
-    mod.show = bool(getattr(ARGS, "show", False)) and mod.browser
     mod.threads = max(1, min(30, int(getattr(ARGS, "threads", 5) or 5)))
     mod.tasks = max(0, int(getattr(ARGS, "tasks", 0) or 0))
     return mod

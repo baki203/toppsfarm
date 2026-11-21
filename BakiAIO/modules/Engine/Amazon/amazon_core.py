@@ -48,8 +48,13 @@ def domain_for(cc: str) -> str:
     return DOMAINS.get(cc.upper(), ("amazon." + cc.lower(), "EUR", "en"))[0]
 
 
-GEN_PRIORITY = ["ZA", "EG", "SA", "IN", "AE", "TR", "NL", "BE", "IT", "PL",
-                "SE", "IE", "FR", "ES", "GB", "MX", "BR", "SG", "AU", "CN", "DE"]
+GEN_TIERS = [
+    ["SA", "ZA", "EG", "IN", "AE", "TR"],
+    ["NL", "BE", "IT", "PL", "SE", "IE"],
+    ["FR", "ES", "GB", "MX", "BR", "SG", "AU", "CN"],
+    ["DE"],
+]
+GEN_PRIORITY = [cc for tier in GEN_TIERS for cc in tier]
 
 MARKETPLACE_IDS = {
     "ZA": "AE08WJ6YKNBMC", "EG": "ARBP9OOSHTCHU", "SA": "A17E79C6D8DWNP",
